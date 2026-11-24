@@ -721,15 +721,17 @@ export class BattleScene extends Phaser.Scene {
 
   private spawnTeams(): void {
     const chosenId = this.initData.playerHeroId;
-    const otherHeroes = HERO_LIST.filter((h) => h.id !== chosenId);
+    const otherHeroes = Phaser.Utils.Array.Shuffle(
+      HERO_LIST.filter((h) => h.id !== chosenId)
+    );
 
     const blueHeroDefs: HeroDef[] = [HEROES[chosenId], ...otherHeroes];
     const redHeroDefs: HeroDef[] = [
       HEROES.amin,
       HEROES.faris,
-      HEROES.hakim,
+      HEROES.aina,
+      HEROES.mumtaz,
       HEROES.zahra,
-      HEROES.zaid,
     ];
 
     const lanes: LaneId[] = ['mid', 'top', 'bot', 'bot', 'top'];
@@ -1222,8 +1224,8 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // Check if Zahra support has a wounded ally nearby
-    if (hero.heroDef.id === 'zahra') {
+    // Check if support/healer bot (Zahra or Putri Aina) has a wounded ally nearby
+    if (hero.heroDef.id === 'zahra' || hero.heroDef.id === 'aina') {
       const woundedAlly = this.heroes.find(
         (h) =>
           !h.isDead &&
@@ -1232,8 +1234,12 @@ export class BattleScene extends Phaser.Scene {
           Phaser.Math.Distance.Between(hero.x, hero.y, h.x, h.y) < 280
       );
       if (woundedAlly) {
-        this.castSkill(hero, 0);
-        this.castSkill(hero, 1);
+        if (hero.heroDef.id === 'zahra') {
+          this.castSkill(hero, 0);
+          this.castSkill(hero, 1);
+        } else {
+          this.castSkill(hero, 1);
+        }
       }
     }
 
@@ -1540,6 +1546,8 @@ export class BattleScene extends Phaser.Scene {
           ? 'proj_arrow'
           : hero.heroDef.id === 'hakim'
           ? 'proj_orb_teal'
+          : hero.heroDef.id === 'aina'
+          ? 'proj_orb_blue'
           : 'proj_orb_gold';
       this.spawnProjectile({
         team: hero.team,
@@ -1549,7 +1557,10 @@ export class BattleScene extends Phaser.Scene {
         angle: hero.facing,
         speed: 560,
         damage: dmg,
-        isMagic: hero.heroDef.id === 'hakim' || hero.heroDef.id === 'zahra',
+        isMagic:
+          hero.heroDef.id === 'hakim' ||
+          hero.heroDef.id === 'zahra' ||
+          hero.heroDef.id === 'aina',
         piercing: false,
         aoeRadius: 0,
         life: 0.65,
@@ -1784,6 +1795,81 @@ export class BattleScene extends Phaser.Scene {
         hero.cycloneTick = 0;
         hero.speedBuffAmount = 0.25;
         hero.speedBuffTimer = 3.2;
+      }
+    } else if (hid === 'mumtaz') {
+      if (idx === 0) {
+        // Sabetan Mahkota (Royal Crown Slash)
+        const sx = hero.x + Math.cos(hero.facing) * 62;
+        const sy = hero.y + Math.sin(hero.facing) * 62;
+        this.spawnSlashArc(hero.x, hero.y, hero.facing, 130, 0xfbbf24);
+        this.spawnRingPulse(sx, sy, 115, 0x6366f1, 0.42);
+        this.damageEnemiesInRadius(hero, sx, sy, 115, (108 + hero.ad * 1.05) * lvlScale, false, 0.35, 1.8);
+      } else if (idx === 1) {
+        // Perisai Kehormatan (Shield + Attack Speed)
+        hero.shield = Math.max(hero.shield, 220 + hero.level * 28);
+        hero.shieldTimer = 3.8;
+        hero.asBuffTimer = 3.5;
+        this.spawnRingPulse(hero.x, hero.y, 85, 0xfbbf24, 0.5);
+        if (hero.isHuman) soundEngine.playHeal();
+      } else if (idx === 2) {
+        // Lompatan Keadilan (Justice Leap Dash + Impact)
+        hero.x += Math.cos(hero.facing) * 175;
+        hero.y += Math.sin(hero.facing) * 175;
+        this.resolveCollisions(hero);
+        this.spawnRingPulse(hero.x, hero.y, 135, 0x818cf8, 0.45);
+        this.damageEnemiesInRadius(hero, hero.x, hero.y, 135, (115 + hero.ad * 0.95) * lvlScale, false, 0.3, 1.4);
+      } else {
+        // Titah Cahaya Agung (Ultimate: AoE radiant pillars + ally shield)
+        this.spawnRingPulse(hero.x, hero.y, 235, 0xfbbf24, 0.62);
+        this.spawnLightBurst(hero.x, hero.y, 0x818cf8, 18);
+        for (const ally of this.heroes) {
+          if (!ally.isDead && ally.team === hero.team && Phaser.Math.Distance.Between(hero.x, hero.y, ally.x, ally.y) <= 235) {
+            ally.shield = Math.max(ally.shield, 230 + hero.level * 32);
+            ally.shieldTimer = 4.5;
+          }
+        }
+        this.damageEnemiesInRadius(hero, hero.x, hero.y, 235, (175 + hero.ad * 1.15) * lvlScale, true, 0.4, 2.2);
+      }
+    } else if (hid === 'aina') {
+      if (idx === 0) {
+        // Sinar Bintang (Starlight Explosive Orb)
+        this.spawnProjectile({
+          team: hero.team,
+          ownerHeroId: hero.id,
+          x: hero.x,
+          y: hero.y,
+          angle: hero.facing,
+          speed: 550,
+          damage: (118 + hero.magic * 1.15) * lvlScale,
+          isMagic: true,
+          piercing: false,
+          aoeRadius: 95,
+          life: 0.72,
+          tex: 'proj_orb_blue',
+        });
+      } else if (idx === 1) {
+        // Embun Kedamaian (AoE Heal + Move Speed Buff)
+        this.spawnRingPulse(hero.x, hero.y, 230, 0xe879f9, 0.5);
+        if (hero.isHuman) soundEngine.playHeal();
+        const healAmt = Math.round((130 + hero.magic * 1.05) * lvlScale);
+        for (const ally of this.heroes) {
+          if (!ally.isDead && ally.team === hero.team && Phaser.Math.Distance.Between(hero.x, hero.y, ally.x, ally.y) <= 240) {
+            this.healHero(ally, healAmt);
+            ally.speedBuffAmount = 0.25;
+            ally.speedBuffTimer = 3.0;
+          }
+        }
+      } else if (idx === 2) {
+        // Cincin Rembulan (Moonlight Ring Damage + Slow)
+        const tx = nearest ? nearest.obj.x : hero.x + Math.cos(hero.facing) * 185;
+        const ty = nearest ? nearest.obj.y : hero.y + Math.sin(hero.facing) * 185;
+        this.spawnAoEZone(hero, 'damage_slow', tx, ty, 135, 3.0, 0.6, (54 + hero.magic * 0.58) * lvlScale, 0xa855f7);
+      } else {
+        // Simfoni Fajar (Ultimate: Dawn Star Garden Heal + Enemy Damage/Slow)
+        const tx = nearest ? nearest.obj.x : hero.x + Math.cos(hero.facing) * 140;
+        const ty = nearest ? nearest.obj.y : hero.y + Math.sin(hero.facing) * 140;
+        this.spawnAoEZone(hero, 'heal_slow', tx, ty, 220, 4.0, 0.55, (72 + hero.magic * 0.62) * lvlScale, 0xe879f9);
+        if (hero.isHuman) soundEngine.playHeal();
       }
     }
   }

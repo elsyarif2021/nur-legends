@@ -1,4 +1,4 @@
-export type HeroId = 'amin' | 'faris' | 'hakim' | 'zahra' | 'zaid';
+export type HeroId = 'amin' | 'faris' | 'hakim' | 'zahra' | 'zaid' | 'mumtaz' | 'aina';
 
 export type HeroRole = 'Tank' | 'Marksman' | 'Mage' | 'Support' | 'Fighter';
 

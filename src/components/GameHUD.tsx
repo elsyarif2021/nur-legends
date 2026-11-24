@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   BookOpen,
+  Gamepad2,
   MessageSquareHeart,
   Pause,
   Play,
@@ -59,6 +60,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const [quickChatOpen, setQuickChatOpen] = useState(false);
   const [chatCooldown, setChatCooldown] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
+  const [virtualStickVisible, setVirtualStickVisible] = useState(true);
   const [tutorialOpen, setTutorialOpen] = useState(showTutorialInitially);
   const [tutorialStep, setTutorialStep] = useState(0);
 
@@ -101,6 +103,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       } else if (e.key.toLowerCase() === 't' && !pauseOpen && !shopOpen && !scoreboardOpen) {
         soundEngine.playClick();
         setQuickChatOpen((v) => !v);
+      } else if (e.key.toLowerCase() === 'v' && !pauseOpen && !shopOpen && !scoreboardOpen) {
+        soundEngine.playClick();
+        setVirtualStickVisible((v) => !v);
       } else if (quickChatOpen && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
         const chosen = QUICK_CHATS[Number(e.key) - 1];
         if (chosen) handleSendQuickChat(chosen.id);
@@ -116,8 +121,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   const tutorialSteps = [
     {
-      title: '1. Kendali Pahlawan',
-      body: 'Gunakan Joystick kiri (layar sentuh) atau tombol WASD / Panah pada keyboard untuk bergerak menjelajahi 3 jalur pertempuran.',
+      title: '1. Kendali Pahlawan (HP, Laptop & PC)',
+      body: 'Seret Stick Virtual di kiri bawah dengan mouse/trackpad atau sentuhan layar, atau gunakan tombol WASD / Panah keyboard untuk bergerak di 3 jalur.',
     },
     {
       title: '2. Menyerang & Gunakan Skill',
@@ -391,6 +396,23 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             type="button"
             onClick={() => {
               soundEngine.playClick();
+              setVirtualStickVisible((v) => !v);
+            }}
+            className={`p-2 rounded-lg border transition-colors ${
+              virtualStickVisible
+                ? 'bg-[#081523]/92 border-[#fbbf24]/55 text-[#fbbf24] hover:bg-[#10233a]'
+                : 'bg-[#081523]/92 border-slate-700 text-slate-400 hover:bg-[#10233a]'
+            }`}
+            title={virtualStickVisible ? 'Sembunyikan Stick Virtual (V)' : 'Tampilkan Stick Virtual (V)'}
+            aria-label="Toggle Stick Virtual"
+          >
+            <Gamepad2 className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundEngine.playClick();
               setTutorialStep(0);
               setTutorialOpen(true);
             }}
@@ -493,7 +515,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       {/* BOTTOM BAR: Mobile compact vitals + desktop hint */}
       <div className="flex items-end justify-center pb-2 pointer-events-none">
         <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 rounded-lg bg-[#081523]/85 border border-[#d4af37]/30 text-[11px] text-slate-300">
-          <span>WASD Gerak</span>
+          <span>Stick Virtual / WASD Gerak</span>
           <span>·</span>
           <span>Spasi Serang</span>
           <span>·</span>
@@ -503,7 +525,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           <span>·</span>
           <span>B Pulang · G Pulih</span>
           <span>·</span>
-          <span>T Pesan Cepat</span>
+          <span>T Chat · V Stick</span>
         </div>
 
         {/* Small screen HP/Mana bar */}
@@ -524,8 +546,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       </div>
 
-      {/* TOUCH / SKILL CONTROLS */}
-      <MobileControls hud={hud} inputBridge={inputBridge} />
+      {/* TOUCH & PC/LAPTOP VIRTUAL STICK CONTROLS */}
+      <MobileControls hud={hud} inputBridge={inputBridge} visible={virtualStickVisible} />
 
       {/* ITEM SHOP MODAL */}
       {shopOpen && (

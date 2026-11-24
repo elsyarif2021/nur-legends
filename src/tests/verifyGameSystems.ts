@@ -21,7 +21,9 @@ import {
 
 async function runTests() {
   // 1. Heroes integrity check
-  assert.equal(HERO_LIST.length, 5, 'Should have exactly 5 playable heroes');
+  assert.equal(HERO_LIST.length, 7, 'Should have exactly 7 playable heroes');
+  assert.equal(HEROES.mumtaz.name, 'Pangeran Mumtaz');
+  assert.equal(HEROES.aina.name, 'Putri Aina');
   for (const h of HERO_LIST) {
     assert.equal(h.skills.length, 4, `${h.name} should have 4 skills`);
     assert.ok(h.stats.maxHp > 0 && h.stats.maxMana > 0, `${h.name} stats valid`);

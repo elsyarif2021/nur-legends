@@ -12,7 +12,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { HEROES } from '../data/heroes';
+import { HEROES, HERO_LIST } from '../data/heroes';
 import { soundEngine } from '../services/sound';
 import { getXpForNextLevel } from '../services/storage';
 import { GameMode, HeroId, PlayerProgress, PlayerSettings } from '../types/game';
@@ -188,7 +188,7 @@ export const Lobby: React.FC<LobbyProps> = ({
             <Users className="w-5 h-5 text-[#fbbf24]" />
             <div>
               <div className="text-sm font-bold text-white">Koleksi Pahlawan</div>
-              <div className="text-[11px] text-slate-400 hidden sm:block">5 Penjaga Cahaya</div>
+              <div className="text-[11px] text-slate-400 hidden sm:block">{HERO_LIST.length} Penjaga Cahaya</div>
             </div>
           </button>
 
@@ -327,7 +327,7 @@ export const Lobby: React.FC<LobbyProps> = ({
       <footer className="relative z-10 px-4 sm:px-8 py-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[11px] text-slate-400">
         <span>Amanah · Sabar · Kejujuran · Persaudaraan</span>
         <span className="hidden sm:inline">
-          Desktop: WASD Gerak · Spasi Serang · Q E R F Skill · B Pulang | Layar Sentuh: Joystick & Tombol
+          Laptop/PC: Stick Virtual (Mouse) / WASD · Spasi Serang · Q E R F Skill · B Pulang | Sentuh: Joystick & Tombol
         </span>
       </footer>
 

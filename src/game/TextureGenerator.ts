@@ -286,6 +286,42 @@ function generateHeroTexture(
       ctx.moveTo(cx + 8, cy + 10);
       ctx.quadraticCurveTo(cx + 26, cy + 18, cx + 30, cy + 2);
       ctx.stroke();
+    } else if (heroId === 'mumtaz') {
+      // Royal golden crown crest + radiant broadsword facing +X
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + 10, cy + 8);
+      ctx.lineTo(cx + 32, cy - 12);
+      ctx.stroke();
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx + 12, cy + 1);
+      ctx.lineTo(cx + 19, cy + 8);
+      ctx.stroke();
+    } else if (heroId === 'aina') {
+      // Royal starlight veil rim + floating morning-star prism
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, 15, Math.PI * 0.55, Math.PI * 1.45);
+      ctx.stroke();
+      ctx.fillStyle = '#e879f9';
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + 24, cy - 7);
+      ctx.lineTo(cx + 31, cy);
+      ctx.lineTo(cx + 24, cy + 7);
+      ctx.lineTo(cx + 17, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
     }
   });
 }
