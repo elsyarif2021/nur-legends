@@ -43,6 +43,7 @@ class OnlineRoomClient {
   private reconnectTimer: number | null = null;
   private intentionalClose = false;
   private reconnectAttempts = 0;
+  private resumeKey: string | null = null;
 
   public subscribe(listener: OnlineClientEvents): () => void {
     this.listeners.add(listener);
@@ -81,7 +82,8 @@ class OnlineRoomClient {
     this.intentionalClose = false;
     this.setStatus('connecting');
 
-    const wsUrl = getWebSocketUrl();
+    const wsUrl = new URL(getWebSocketUrl(), window.location.href);
+    if (this.resumeKey) wsUrl.searchParams.set('resume', this.resumeKey);
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
 
@@ -123,7 +125,9 @@ class OnlineRoomClient {
   }
 
   public disconnect(): void {
+    if (this.room) this.send({ type: 'room:leave' });
     this.intentionalClose = true;
+    this.resumeKey = null;
     this.reconnectAttempts = 0;
     if (this.reconnectTimer !== null) {
       window.clearTimeout(this.reconnectTimer);
@@ -152,6 +156,7 @@ class OnlineRoomClient {
   private handleMessage(msg: Record<string, unknown>): void {
     switch (msg.type) {
       case 'welcome': {
+        if (typeof msg.resumeKey === 'string') this.resumeKey = msg.resumeKey;
         const previousId = this.playerId;
         this.playerId = String(msg.playerId || '');
         if (previousId && previousId !== this.playerId && this.room) {

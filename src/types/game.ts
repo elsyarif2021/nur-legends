@@ -125,6 +125,8 @@ export interface PlayerProgress {
   quizCorrectCount: number;
   settings: PlayerSettings;
   tutorialCompleted: boolean;
+  lastLoginRewardDate?: string;
+  heroMastery?: Partial<Record<HeroId, number>>;
 }
 
 export interface MinimapEntity {

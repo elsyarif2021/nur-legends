@@ -40,6 +40,8 @@ interface ClientSession {
   ws: WebSocket;
   roomCode: string | null;
   isAlive: boolean;
+  resumeKey: string;
+  expiresAt?: number;
 }
 
 const VALID_HERO_IDS = new Set<HeroId>([
@@ -677,27 +679,37 @@ async function startServer(): Promise<void> {
     },
   });
 
-  wss.on('connection', (ws) => {
-    const playerId = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-    const session: ClientSession = {
-      playerId,
-      ws,
-      roomCode: null,
-      isAlive: true,
-    };
+  wss.on('connection', (ws, req) => {
+    const resumeKey = new URL(req.url || '/ws', 'http://localhost').searchParams.get('resume');
+    const prior = resumeKey && /^[a-f0-9]{64}$/.test(resumeKey) ? [...sessions.values()].find(s => s.resumeKey === resumeKey && s.ws.readyState !== WebSocket.OPEN && (s.expiresAt ?? 0) > Date.now()) : undefined;
+    const playerId = prior?.playerId ?? crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    const session: ClientSession = prior ?? { playerId, ws, roomCode: null, isAlive: true, resumeKey: crypto.randomBytes(32).toString('hex') };
+    session.ws = ws;
+    session.isAlive = true;
+    session.expiresAt = undefined;
+    let windowStart = Date.now(), messageCount = 0;
     sessions.set(playerId, session);
 
     sendJson(ws, {
       type: 'welcome',
       playerId,
+      resumeKey: session.resumeKey,
       rooms: getPublicRoomSummaries(),
     });
+
+    if (prior?.roomCode) {
+      const room = rooms.get(prior.roomCode);
+      if (room) sendJson(ws, { type: 'room:state', room: serializeRoom(room) });
+    }
 
     ws.on('pong', () => {
       session.isAlive = true;
     });
 
     ws.on('message', (rawBuf) => {
+      if (session.ws !== ws) return;
+      if (Date.now() - windowStart >= 1000) { windowStart = Date.now(); messageCount = 0; }
+      if (++messageCount > 180) { ws.close(1008, 'Rate limit'); return; }
       let msg: Record<string, unknown>;
       try {
         msg = JSON.parse(rawBuf.toString('utf8')) as Record<string, unknown>;
@@ -1029,17 +1041,22 @@ async function startServer(): Promise<void> {
     });
 
     ws.on('close', () => {
-      leaveCurrentRoom(session);
-      sessions.delete(playerId);
+      if (session.ws !== ws) return;
+      if (!session.roomCode) { sessions.delete(playerId); return; }
+      session.expiresAt = Date.now() + 60000;
+      setTimeout(() => {
+        if (session.ws !== ws || !session.expiresAt || session.expiresAt > Date.now()) return;
+        leaveCurrentRoom(session);
+        sessions.delete(playerId);
+      }, 60500);
     });
   });
 
   // WebSocket heartbeat cleanup
   const heartbeat = setInterval(() => {
     for (const [id, sess] of sessions.entries()) {
+      if (sess.ws.readyState !== WebSocket.OPEN) continue;
       if (!sess.isAlive) {
-        leaveCurrentRoom(sess);
-        sessions.delete(id);
         sess.ws.terminate();
         continue;
       }

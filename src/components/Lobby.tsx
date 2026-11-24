@@ -50,6 +50,7 @@ interface LobbyProps {
   onSelectDifficulty: (value: BotDifficulty) => void;
   arenaId: ArenaId;
   onSelectArena: (id: ArenaId) => void;
+  onClaimLoginReward: () => void;
   onStartMatch: (mode: GameMode) => void;
   onStartOnlineMatch: (room: OnlineRoomState, localPlayerId: string) => void;
   onChangePlayerName: (name: string) => void;
@@ -83,6 +84,7 @@ export const Lobby: React.FC<LobbyProps> = ({
   onSelectDifficulty,
   arenaId,
   onSelectArena,
+  onClaimLoginReward,
   onStartMatch,
   onStartOnlineMatch,
   onChangePlayerName,
@@ -407,6 +409,14 @@ export const Lobby: React.FC<LobbyProps> = ({
             <button type="button" onClick={() => { soundEngine.unlock(); onStartMatch('duel'); }} className="min-h-11 rounded-xl bg-slate-800 border border-amber-500/50 text-amber-200 font-bold text-xs">Duel 1v1</button>
             <button type="button" onClick={() => { soundEngine.unlock(); onStartMatch('3v3'); }} className="min-h-11 rounded-xl bg-slate-800 border border-amber-500/50 text-amber-200 font-bold text-xs">Battle 3v3</button>
           </div>
+          <details className="rounded-xl border border-amber-500/40 bg-slate-950/80 p-2 text-xs text-slate-200">
+            <summary className="cursor-pointer font-bold text-amber-200">Mastery, Medali & Hadiah Harian</summary>
+            <p className="mt-2">Mastery {selectedHero.name}: {progress.heroMastery?.[selectedHero.id] ?? 0} XP</p>
+            <p>Medali: {progress.battleHistory.some(m => m.result === 'victory') ? 'Kemenangan Pertama' : 'Belum diperoleh'}</p>
+            <p>{progress.quizCorrectCount >= 3 ? 'Medali Pencari Ilmu' : 'Pencari Ilmu: jawab 3 kuis benar'}</p>
+            <button type="button" disabled={progress.lastLoginRewardDate === new Date().toISOString().slice(0,10)} onClick={onClaimLoginReward} className="mt-2 w-full min-h-10 rounded bg-emerald-700 disabled:bg-slate-700 font-bold">{progress.lastLoginRewardDate === new Date().toISOString().slice(0,10) ? 'Hadiah sudah diklaim' : 'Klaim 100 Emas + 50 XP'}</button>
+            <p className="mt-1 text-slate-400">Progres kasual, bukan ranked. Reset hadiah pukul 00:00 UTC.</p>
+          </details>
           {/* Primary Play CTAs */}
           <div className="flex flex-col gap-2">
             <button

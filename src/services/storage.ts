@@ -210,6 +210,7 @@ export function recordBattleResult(
   next = {
     ...next,
     battleHistory: [record, ...next.battleHistory].slice(0, 20),
+    heroMastery: { ...next.heroMastery, [params.heroId]: (next.heroMastery?.[params.heroId] ?? 0) + (won ? 100 : 40) },
   };
   savePlayerProgress(next);
   return next;

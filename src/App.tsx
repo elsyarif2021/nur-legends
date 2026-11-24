@@ -380,6 +380,13 @@ export default function App() {
             onSelectDifficulty={selectDifficulty}
             arenaId={arenaId}
             onSelectArena={selectArena}
+            onClaimLoginReward={() => setProgress(prev => {
+              const today = new Date().toISOString().slice(0,10);
+              if (prev.lastLoginRewardDate === today) return prev;
+              const next = { ...applyXpAndGold(prev, 100, 50), lastLoginRewardDate: today };
+              savePlayerProgress(next);
+              return next;
+            })}
             onStartMatch={handleStartMatch}
             onStartOnlineMatch={handleStartOnlineMatch}
             onChangePlayerName={handleChangePlayerName}
