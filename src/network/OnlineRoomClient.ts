@@ -1,3 +1,4 @@
+import { getWebSocketUrl } from '../config/endpoints';
 import {
   HeroId,
   OnlineChatMessage,
@@ -77,8 +78,7 @@ class OnlineRoomClient {
     this.intentionalClose = false;
     this.setStatus('connecting');
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = getWebSocketUrl();
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
 

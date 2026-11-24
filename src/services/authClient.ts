@@ -1,8 +1,19 @@
+import { getApiUrl } from '../config/endpoints';
 import { AuthUser, PlayerProgress } from '../types/game';
 
 export interface AuthSessionResult {
   user: AuthUser;
   progress: PlayerProgress | null;
+}
+
+async function parseJsonSafe<T>(res: Response): Promise<T | null> {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.toLowerCase().includes('application/json')) return null;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 class AuthClient {
@@ -24,17 +35,22 @@ class AuthClient {
     password: string;
     progress?: PlayerProgress;
   }): Promise<AuthSessionResult> {
-    const res = await fetch('/api/auth/register', {
+    const res = await fetch(getApiUrl('/api/auth/register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    const data = (await res.json()) as {
+    const data = await parseJsonSafe<{
       token?: string;
       user?: AuthUser;
       progress?: PlayerProgress | null;
       error?: string;
-    };
+    }>(res);
+    if (!data) {
+      throw new Error(
+        'Server akun belum terhubung. Atur VITE_API_URL ke server backend Node.js atau lanjutkan sebagai Tamu.'
+      );
+    }
     if (!res.ok || !data.token || !data.user) {
       throw new Error(data.error || 'Gagal membuat akun.');
     }
@@ -48,17 +64,22 @@ class AuthClient {
     email: string;
     password: string;
   }): Promise<AuthSessionResult> {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(getApiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    const data = (await res.json()) as {
+    const data = await parseJsonSafe<{
       token?: string;
       user?: AuthUser;
       progress?: PlayerProgress | null;
       error?: string;
-    };
+    }>(res);
+    if (!data) {
+      throw new Error(
+        'Server akun belum terhubung. Atur VITE_API_URL ke server backend Node.js atau lanjutkan sebagai Tamu.'
+      );
+    }
     if (!res.ok || !data.token || !data.user) {
       throw new Error(data.error || 'Email atau password salah.');
     }
@@ -70,7 +91,7 @@ class AuthClient {
   public async syncProgress(progress: PlayerProgress): Promise<void> {
     if (!this.token) return;
     try {
-      const res = await fetch('/api/auth/progress', {
+      const res = await fetch(getApiUrl('/api/auth/progress'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -79,8 +100,8 @@ class AuthClient {
         body: JSON.stringify({ progress }),
       });
       if (res.ok) {
-        const data = (await res.json()) as { user?: AuthUser };
-        if (data.user) this.currentUser = data.user;
+        const data = await parseJsonSafe<{ user?: AuthUser }>(res);
+        if (data?.user) this.currentUser = data.user;
       }
     } catch {
       // Ignore transient network errors when syncing background progress
@@ -93,7 +114,7 @@ class AuthClient {
     this.currentUser = null;
     if (!tok) return;
     try {
-      await fetch('/api/auth/logout', {
+      await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${tok}` },
       });
@@ -104,3 +125,4 @@ class AuthClient {
 }
 
 export const authClient = new AuthClient();
+

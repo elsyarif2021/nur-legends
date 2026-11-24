@@ -80,3 +80,19 @@ npm start        # Menjalankan server produksi Node.js (server.ts)
 npx tsx src/tests/verifyGameSystems.ts  # Uji integritas sistem & logika gim
 ```
 
+---
+
+## Integrasi & Deployment Vercel
+
+Proyek ini sudah dikonfigurasi dengan `vercel.json` untuk build Vite SPA (`dist/`), dukungan `Permissions-Policy` (`camera=(self), microphone=(self), fullscreen=(self)`), serta dukungan CORS dan WebSocket tervalidasi untuk origin Vercel (`https://nur-legends-git-main-elsyarif2021s-projects.vercel.app`).
+
+1. **Deploy Frontend di Vercel**:
+   - Hubungkan repositori ke proyek Vercel (`Framework Preset: Vite`, `Build Command: npm run build`, `Output Directory: dist`).
+2. **Konfigurasi Backend Persistent (untuk Akun & Multipemain WebSocket `/ws`)**:
+   - Karena Vercel Serverless tidak mendukung server WebSocket stateful jangka panjang, jalankan `server.ts` pada host Node.js persisten (misalnya Cloud Run, Railway, Render, atau Fly.io) dengan `ALLOWED_ORIGINS="https://nur-legends-git-main-elsyarif2021s-projects.vercel.app"`.
+   - Di **Vercel Project Settings -> Environment Variables**, tambahkan:
+     - `VITE_API_URL` = URL HTTPS server Node.js Anda
+     - `VITE_WS_URL` = URL WSS WebSocket server Node.js Anda (`wss://.../ws`)
+   - Jika dijalankan tanpa backend eksternal, mode **5 vs 5 Bot** dan **Mode Latihan** tetap berfungsi penuh di browser.
+
+

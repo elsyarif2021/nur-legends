@@ -56,6 +56,45 @@ const SESSION_SECRET =
   process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+function normalizeOrigin(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.trim());
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+const ALLOWED_ORIGINS = new Set<string>([
+  'https://nur-legends-git-main-elsyarif2021s-projects.vercel.app',
+  'https://nur-legends.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+]);
+
+const appOrigin = normalizeOrigin(process.env.APP_URL);
+if (appOrigin) ALLOWED_ORIGINS.add(appOrigin);
+
+if (process.env.ALLOWED_ORIGINS) {
+  for (const part of process.env.ALLOWED_ORIGINS.split(',')) {
+    const norm = normalizeOrigin(part);
+    if (norm) ALLOWED_ORIGINS.add(norm);
+  }
+}
+
+function isOriginAllowed(origin: string | undefined, hostHeader?: string): boolean {
+  if (!origin) return true; // same-origin / non-browser client without Origin header
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  if (hostHeader) {
+    if (origin === `https://${hostHeader}` || origin === `http://${hostHeader}`) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const ACCOUNTS_FILE = path.resolve(DATA_DIR, 'accounts.json');
 
@@ -402,6 +441,23 @@ async function startServer(): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
+  // Origin-allowlisted CORS for cross-origin Vercel frontend integration (no wildcard '*')
+  app.use('/api', (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin, req.headers.host)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Max-Age', '600');
+    }
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, rooms: rooms.size, playersOnline: sessions.size });
   });
@@ -570,6 +626,14 @@ async function startServer(): Promise<void> {
     server,
     path: '/ws',
     maxPayload: 64 * 1024,
+    verifyClient: (info, done) => {
+      const origin = info.origin || info.req.headers.origin;
+      if (isOriginAllowed(origin, info.req.headers.host)) {
+        done(true);
+      } else {
+        done(false, 403, 'Origin not allowed');
+      }
+    },
   });
 
   wss.on('connection', (ws) => {

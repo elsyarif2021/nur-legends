@@ -202,6 +202,15 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
           </div>
         )}
 
+        {status === 'disconnected' && !errorMsg && (
+          <div className="px-3.5 py-2 rounded-xl bg-amber-950/70 border border-amber-500/45 text-xs text-amber-200">
+            Belum terhubung ke server WebSocket multipemain. Jika aplikasi dijalankan di Vercel statis, pastikan variabel{' '}
+            <code className="font-mono-num text-amber-100">VITE_WS_URL</code> /{' '}
+            <code className="font-mono-num text-amber-100">VITE_API_URL</code> mengarah ke server backend Node.js Anda. Mode offline{' '}
+            <strong>5 vs 5</strong> dan <strong>Latihan</strong> tetap dapat dimainkan sepenuhnya.
+          </div>
+        )}
+
         {/* MAIN BODY */}
         {!room ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-y-auto custom-scroll pr-1">
