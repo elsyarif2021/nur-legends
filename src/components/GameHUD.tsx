@@ -628,7 +628,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       </div>
 
       {/* TOUCH & PC/LAPTOP VIRTUAL STICK CONTROLS */}
-      <MobileControls hud={hud} inputBridge={inputBridge} visible={virtualStickVisible} />
+      <MobileControls hud={hud} inputBridge={inputBridge} visible={virtualStickVisible && !shopOpen && !scoreboardOpen && !pauseOpen && !tutorialOpen && !hud.matchResult} />
 
       {/* ITEM SHOP MODAL */}
       {shopOpen && (
