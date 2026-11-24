@@ -12,25 +12,25 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/icons/nur-192.svg",
+      "src": "/icons/nur-rosette-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icons/nur-512.svg",
+      "src": "/icons/nur-rosette-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/nur-192.png",
+      "src": "/icons/nur-rosette-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/nur-512.png",
+      "src": "/icons/nur-rosette-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

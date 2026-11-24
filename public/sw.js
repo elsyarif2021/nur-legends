@@ -1,5 +1,5 @@
-const CACHE = 'nur-legends-shell-v1';
-const SHELL = ['/', '/manifest.webmanifest', '/icons/nur-192.png', '/icons/nur-512.png'];
+const CACHE = 'nur-legends-shell-v2';
+const SHELL = ['/', '/manifest.webmanifest', '/icons/nur-rosette-192.png', '/icons/nur-rosette-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
 });
