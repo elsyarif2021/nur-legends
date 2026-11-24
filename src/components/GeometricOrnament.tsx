@@ -6,26 +6,10 @@ export const StarEmblem: React.FC<{ className?: string; color?: string }> = ({
   color = '#d4af37',
 }) => (
   <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
-    <rect
-      x="14"
-      y="14"
-      width="36"
-      height="36"
-      stroke={color}
-      strokeWidth="2.5"
-      fill="none"
-    />
-    <rect
-      x="14"
-      y="14"
-      width="36"
-      height="36"
-      transform="rotate(45 32 32)"
-      stroke={color}
-      strokeWidth="2.5"
-      fill="none"
-    />
-    <circle cx="32" cy="32" r="7" stroke={color} strokeWidth="2" fill={color} fillOpacity="0.2" />
+    <circle cx="32" cy="32" r="28" stroke={color} strokeWidth="1.5" opacity=".55" />
+    <path d="M32 5L39 15L51 13L49 25L59 32L49 39L51 51L39 49L32 59L25 49L13 51L15 39L5 32L15 25L13 13L25 15Z" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+    <path d="M32 19L43 26V38L32 45L21 38V26Z" fill={color} fillOpacity=".18" stroke={color} strokeWidth="1.8" />
+    <circle cx="32" cy="32" r="4" fill={color} />
   </svg>
 );
 
