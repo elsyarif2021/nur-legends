@@ -307,6 +307,22 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-[#07111e] text-[#fdfbf7]">
+      <button
+        type="button"
+        onClick={() => {
+          const message = screen === 'BATTLE'
+            ? 'Muat ulang game? Pertandingan yang sedang berlangsung dapat terputus dan Anda mungkin perlu login kembali.'
+            : 'Muat ulang NUR LEGENDS? Anda mungkin perlu login kembali.';
+          if (window.confirm(message)) window.location.reload();
+        }}
+        aria-label="Refresh game jika hang"
+        title="Refresh game jika hang"
+        className="fixed z-[100] left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-slate-950/95 px-3 min-h-11 text-xs font-bold text-amber-200 shadow-lg touch-manipulation"
+        style={{ bottom: 'max(8px, env(safe-area-inset-bottom))' }}
+      >
+        <span aria-hidden="true" className="text-lg leading-none">↻</span> Refresh
+      </button>
+
       {screen === 'LOBBY' ? (
         <>
           <Lobby
