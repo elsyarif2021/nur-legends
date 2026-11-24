@@ -48,15 +48,25 @@ function getInitialInviteRoomCode(): string | null {
 
 const NARRATOR_GUIDE = 'Assalamualaikum, Penjaga Cahaya! Selamat datang di Nur Legends. Pilih pahlawanmu di lobi. Jika baru bermain, mulailah dengan mode latihan. Gunakan joystick atau tombol arah untuk bergerak, dan tombol serangan serta skill untuk bertarung. Lindungi menara timmu dan hancurkan Inti Cahaya lawan. Bermainlah dengan sabar, sportif, dan saling membantu.';
 
-function speakGuide(message: string, volume: number): void {
+type NarratorLanguage = 'id-ID' | 'en-US';
+const ENGLISH_GUIDE = 'Assalamualaikum, Guardian of Light! Welcome to Nur Legends, Guardians of Light. Choose your hero in the lobby. If you are new to the game, start with training mode. Use the joystick or arrow keys to move, and the attack and skill buttons to fight. Defend your team's towers and destroy the enemy Light Core. Play with patience, sportsmanship, and teamwork. May your adventure be filled with courage and wisdom!';
+const guideText = (language: NarratorLanguage) => language === 'en-US' ? ENGLISH_GUIDE : NARRATOR_GUIDE;
+
+function readNarratorLanguage(): NarratorLanguage {
+  try { return localStorage.getItem('nur_legends_narrator_language') === 'en-US' ? 'en-US' : 'id-ID'; }
+  catch { return 'id-ID'; }
+}
+
+function speakGuide(message: string, volume: number, language: NarratorLanguage): void {
   if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
   try {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(message);
-    speech.lang = 'id-ID';
+    speech.lang = language;
     speech.rate = 0.92;
     speech.volume = Math.max(0, Math.min(1, volume));
-    const voice = window.speechSynthesis.getVoices().find(v => v.lang.toLowerCase().startsWith('id'));
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find(v => v.lang.toLowerCase() === language.toLowerCase()) ?? voices.find(v => v.lang.toLowerCase().split('-')[0] === language.split('-')[0]);
     if (voice) speech.voice = voice;
     window.speechSynthesis.speak(speech);
   } catch { /* Text guide remains available. */ }
@@ -70,6 +80,13 @@ export default function App() {
   const [progress, setProgress] = useState<PlayerProgress>(() => loadPlayerProgress());
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideEnabled, setGuideEnabled] = useState(true);
+  const [narratorLanguage, setNarratorLanguage] = useState<NarratorLanguage>(readNarratorLanguage);
+  const changeNarratorLanguage = (language: NarratorLanguage) => {
+    stopGuide();
+    setNarratorLanguage(language);
+    try { localStorage.setItem('nur_legends_narrator_language', language); } catch { /* preference remains in memory */ }
+    if (guideEnabled && !progress.settings.muted) speakGuide(guideText(language), progress.settings.volume, language);
+  };
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(
     () => !getInitialInviteRoomCode()
@@ -110,7 +127,7 @@ export default function App() {
 
   const openGuide = (settings = progress.settings) => {
     setGuideOpen(true);
-    if (guideEnabled && !settings.muted) speakGuide(NARRATOR_GUIDE, settings.volume);
+    if (guideEnabled && !settings.muted) speakGuide(guideText(narratorLanguage), settings.volume, narratorLanguage);
   };
 
   const handleSelectHero = (heroId: HeroId) => {
@@ -349,13 +366,18 @@ export default function App() {
           )}
           {guideOpen && !authModalOpen && (
             <div role="dialog" aria-modal="true" aria-labelledby="guide-title" className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4">
-              <div className="w-full max-w-md rounded-2xl border border-amber-500/60 bg-slate-950 p-5 shadow-xl">
-                <h2 id="guide-title" className="text-lg font-bold text-amber-300">Narator Penjaga Cahaya</h2>
-                <p className="mt-3 text-sm leading-relaxed text-slate-200">{NARRATOR_GUIDE}</p>
+              <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-amber-500/60 bg-slate-950 p-5 shadow-xl">
+                <h2 id="guide-title" className="text-lg font-bold text-amber-300">{narratorLanguage === 'en-US' ? 'Guardian of Light Narrator' : 'Narator Penjaga Cahaya'}</h2>
+                <label className="mt-3 block text-xs font-bold text-amber-200" htmlFor="narrator-language">Bahasa narator / Narrator language</label>
+                <select id="narrator-language" value={narratorLanguage} onChange={e => changeNarratorLanguage(e.target.value === 'en-US' ? 'en-US' : 'id-ID')} className="mt-1 w-full min-h-11 rounded-lg border border-amber-500/50 bg-slate-800 px-3 text-sm text-white">
+                  <option value="id-ID">Bahasa Indonesia</option>
+                  <option value="en-US">English</option>
+                </select>
+                <p lang={narratorLanguage} className="mt-3 text-sm leading-relaxed text-slate-200">{guideText(narratorLanguage)}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" disabled={!guideEnabled || progress.settings.muted} className="rounded bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50" onClick={() => speakGuide(NARRATOR_GUIDE, progress.settings.volume)}>Putar suara</button>
-                  <button type="button" className="rounded bg-slate-800 px-3 py-2 text-sm" onClick={() => { stopGuide(); setGuideEnabled(!guideEnabled); }}>{guideEnabled ? 'Nonaktifkan narator' : 'Aktifkan narator'}</button>
-                  <button type="button" className="rounded bg-emerald-700 px-3 py-2 text-sm" onClick={() => { stopGuide(); setGuideOpen(false); }}>Lanjut bermain</button>
+                  <button type="button" disabled={!guideEnabled || progress.settings.muted} className="rounded bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50" onClick={() => speakGuide(guideText(narratorLanguage), progress.settings.volume, narratorLanguage)}>{narratorLanguage === 'en-US' ? 'Play voice' : 'Putar suara'}</button>
+                  <button type="button" className="rounded bg-slate-800 px-3 py-2 text-sm" onClick={() => { stopGuide(); setGuideEnabled(!guideEnabled); }}>{narratorLanguage === 'en-US' ? (guideEnabled ? 'Mute narrator' : 'Enable narrator') : (guideEnabled ? 'Nonaktifkan narator' : 'Aktifkan narator')}</button>
+                  <button type="button" className="rounded bg-emerald-700 px-3 py-2 text-sm" onClick={() => { stopGuide(); setGuideOpen(false); }}>{narratorLanguage === 'en-US' ? 'Continue playing' : 'Lanjut bermain'}</button>
                 </div>
               </div>
             </div>
