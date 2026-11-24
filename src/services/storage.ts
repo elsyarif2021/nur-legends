@@ -180,6 +180,7 @@ export function recordBattleResult(
     heroId: HeroId;
     mode: GameMode;
     winner: 'blue' | 'red';
+    playerTeam?: 'blue' | 'red';
     durationSec: number;
     kills: number;
     deaths: number;
@@ -189,7 +190,7 @@ export function recordBattleResult(
     xpEarned: number;
   }
 ): PlayerProgress {
-  const won = params.winner === 'blue';
+  const won = params.winner === (params.playerTeam || 'blue');
   const record: BattleRecord = {
     id: `match_${Date.now()}`,
     timestamp: Date.now(),

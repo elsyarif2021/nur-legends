@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import {
   BookOpen,
   Compass,
+  Globe,
   History,
+  LogIn,
+  LogOut,
   Maximize2,
   Minimize2,
   Settings,
@@ -15,7 +18,14 @@ import {
 import { HEROES, HERO_LIST } from '../data/heroes';
 import { soundEngine } from '../services/sound';
 import { getXpForNextLevel } from '../services/storage';
-import { GameMode, HeroId, PlayerProgress, PlayerSettings } from '../types/game';
+import {
+  AuthUser,
+  GameMode,
+  HeroId,
+  OnlineRoomState,
+  PlayerProgress,
+  PlayerSettings,
+} from '../types/game';
 import { CornerFiligree, SkillIcon, StarEmblem } from './GeometricOrnament';
 import { HeroAvatar } from './HeroAvatar';
 import {
@@ -25,31 +35,48 @@ import {
   QuizModal,
   SettingsModal,
 } from './LobbyModals';
+import { OnlineLobbyModal } from './OnlineLobbyModal';
 
 interface LobbyProps {
   progress: PlayerProgress;
+  authUser: AuthUser | null;
+  initialRoomCode?: string | null;
   onStartMatch: (mode: GameMode) => void;
+  onStartOnlineMatch: (room: OnlineRoomState, localPlayerId: string) => void;
+  onChangePlayerName: (name: string) => void;
   onSelectHero: (heroId: HeroId) => void;
   onClaimMission: (missionId: string) => void;
   onAnswerQuiz: (questionId: string, isCorrect: boolean) => void;
   onUpdateSettings: (patch: Partial<PlayerSettings>) => void;
   onResetProgress: () => void;
+  onOpenAuth: () => void;
+  onLogout: () => void;
+  onClearInitialRoomCode?: () => void;
 }
 
-type ModalTab = 'heroes' | 'missions' | 'quiz' | 'history' | 'settings' | null;
+type ModalTab = 'heroes' | 'missions' | 'quiz' | 'history' | 'settings' | 'online' | null;
 
 const PALACE_BG = '/src/assets/images/palace_lobby_bg_1795510715124.jpg';
 
 export const Lobby: React.FC<LobbyProps> = ({
   progress,
+  authUser,
+  initialRoomCode,
   onStartMatch,
+  onStartOnlineMatch,
+  onChangePlayerName,
   onSelectHero,
   onClaimMission,
   onAnswerQuiz,
   onUpdateSettings,
   onResetProgress,
+  onOpenAuth,
+  onLogout,
+  onClearInitialRoomCode,
 }) => {
-  const [activeModal, setActiveModal] = useState<ModalTab>(null);
+  const [activeModal, setActiveModal] = useState<ModalTab>(() =>
+    initialRoomCode ? 'online' : null
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const selectedHero = HEROES[progress.selectedHeroId];
@@ -107,11 +134,16 @@ export const Lobby: React.FC<LobbyProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm sm:text-base font-bold text-[#fdfbf7] truncate">
-                {progress.playerName}
+                {progress.playerName || 'Penjaga Cahaya'}
               </span>
               <span className="text-xs font-mono-num font-bold text-[#fbbf24]">
                 Lv.{progress.level}
               </span>
+              {authUser && (
+                <span className="hidden md:inline text-[11px] text-emerald-300 truncate max-w-[160px]">
+                  · {authUser.email}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className="w-24 sm:w-32 h-1.5 rounded-full bg-slate-900 overflow-hidden">
@@ -142,10 +174,38 @@ export const Lobby: React.FC<LobbyProps> = ({
         </div>
 
         {/* Right Utility & Gold Counter */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           <div className="px-3 py-1.5 rounded-lg bg-[#0b192b]/90 border border-[#d4af37]/40 text-xs sm:text-sm font-mono-num font-bold text-[#fbbf24]">
             {progress.gold} Emas
           </div>
+
+          {authUser ? (
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                onLogout();
+              }}
+              className="px-2.5 py-2 rounded-lg bg-[#0b192b]/90 border border-rose-500/40 text-rose-200 hover:bg-rose-950/50 text-xs font-semibold flex items-center gap-1.5"
+              title={`Keluar Akun (${authUser.email})`}
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Keluar</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                onOpenAuth();
+              }}
+              className="px-2.5 py-2 rounded-lg bg-emerald-600/25 border border-emerald-400/60 text-emerald-200 hover:bg-emerald-600/40 text-xs font-bold flex items-center gap-1.5"
+              title="Masuk atau Buat Akun"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Masuk / Akun</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -293,7 +353,7 @@ export const Lobby: React.FC<LobbyProps> = ({
           </div>
 
           {/* Primary Play CTAs */}
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-2">
             <button
               type="button"
               onClick={() => {
@@ -301,10 +361,19 @@ export const Lobby: React.FC<LobbyProps> = ({
                 soundEngine.playSkill(true);
                 onStartMatch('5v5');
               }}
-              className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f59e0b] to-[#d97706] hover:brightness-110 text-[#07111e] font-display font-extrabold text-base sm:text-lg tracking-wide shadow-xl flex items-center justify-center gap-2.5 transition-transform active:scale-[0.98]"
+              className="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f59e0b] to-[#d97706] hover:brightness-110 text-[#07111e] font-display font-extrabold text-base sm:text-lg tracking-wide shadow-xl flex items-center justify-center gap-2.5 transition-transform active:scale-[0.98]"
             >
               <Swords className="w-5 h-5" />
               MULAI PERTANDINGAN 5 vs 5
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openModal('online')}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.99]"
+            >
+              <Globe className="w-4 h-4" />
+              Main Online Dunia (Kamera &amp; Mikrofon)
             </button>
 
             <button
@@ -314,7 +383,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                 soundEngine.playClick();
                 onStartMatch('training');
               }}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#0d283d]/90 hover:bg-[#133854] border border-[#14b8a6]/50 text-[#a7f3d0] font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+              className="w-full py-2 px-4 rounded-xl bg-[#0d283d]/90 hover:bg-[#133854] border border-[#14b8a6]/50 text-[#a7f3d0] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors"
             >
               <Compass className="w-4 h-4" />
               Mode Latihan (1 vs 1 + Minion)
@@ -369,6 +438,25 @@ export const Lobby: React.FC<LobbyProps> = ({
           onUpdateSettings={onUpdateSettings}
           onResetProgress={onResetProgress}
           onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'online' && (
+        <OnlineLobbyModal
+          playerName={progress.playerName}
+          selectedHeroId={progress.selectedHeroId}
+          initialRoomCode={initialRoomCode}
+          onChangePlayerName={onChangePlayerName}
+          onSelectHero={onSelectHero}
+          onMatchStart={(startedRoom, localPlayerId) => {
+            setActiveModal(null);
+            onClearInitialRoomCode?.();
+            onStartOnlineMatch(startedRoom, localPlayerId);
+          }}
+          onClose={() => {
+            setActiveModal(null);
+            onClearInitialRoomCode?.();
+          }}
         />
       )}
     </div>

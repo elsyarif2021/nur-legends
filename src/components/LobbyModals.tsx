@@ -481,7 +481,7 @@ export const HistoryModal: React.FC<{
                         <span className="text-xs text-slate-400">·</span>
                         <span className="text-xs font-semibold text-white">{h.name}</span>
                         <span className="text-[11px] text-slate-400">
-                          ({rec.mode === '5v5' ? '5v5' : 'Latihan'})
+                          ({rec.mode === 'online' ? 'Online Dunia' : rec.mode === '5v5' ? '5v5' : 'Latihan'})
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-400 font-mono-num mt-0.5">

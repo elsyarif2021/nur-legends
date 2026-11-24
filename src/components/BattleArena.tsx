@@ -8,6 +8,7 @@ import {
   HeroId,
   HudSnapshot,
   MatchResultSummary,
+  OnlineRoomState,
   PlayerSettings,
 } from '../types/game';
 import { GameHUD } from './GameHUD';
@@ -15,6 +16,8 @@ import { GameHUD } from './GameHUD';
 interface BattleArenaProps {
   heroId: HeroId;
   mode: GameMode;
+  onlineRoom?: OnlineRoomState | null;
+  onlinePlayerId?: string | null;
   settings: PlayerSettings;
   showTutorialInitially: boolean;
   onUpdateSettings: (patch: Partial<PlayerSettings>) => void;
@@ -26,6 +29,8 @@ interface BattleArenaProps {
 export const BattleArena: React.FC<BattleArenaProps> = ({
   heroId,
   mode,
+  onlineRoom = null,
+  onlinePlayerId = null,
   settings,
   showTutorialInitially,
   onUpdateSettings,
@@ -107,6 +112,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       mode,
       quality: settings.quality,
       inputBridge: inputBridge.current,
+      onlineRoom,
+      onlinePlayerId,
       onHudUpdate: (snapshot) => setHud(snapshot),
       onMatchEnd: (summary) => onMatchFinished(summary),
     };
@@ -148,6 +155,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       <div ref={containerRef} className="w-full h-full" />
       <GameHUD
         hud={hud}
+        mode={mode}
+        onlineRoom={onlineRoom}
+        onlinePlayerId={onlinePlayerId}
         settings={settings}
         showTutorialInitially={showTutorialInitially}
         inputBridge={inputBridge}

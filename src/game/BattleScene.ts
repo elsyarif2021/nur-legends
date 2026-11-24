@@ -3,6 +3,7 @@ import { HEROES, HERO_LIST } from '../data/heroes';
 import { SHOP_ITEMS } from '../data/items';
 import { QUICK_CHAT_MAP } from '../data/quickChat';
 import { LocalBotTransport } from '../network/MatchTransport';
+import { onlineClient } from '../network/OnlineRoomClient';
 import { soundEngine } from '../services/sound';
 import {
   BattleInputBridge,
@@ -14,6 +15,9 @@ import {
   HudSnapshot,
   MatchResultSummary,
   MinimapEntity,
+  OnlineFxEvent,
+  OnlineRoomState,
+  OnlineWorldSnapshot,
   QuickChatFeedItem,
   QuickChatId,
   ScoreboardRow,
@@ -115,6 +119,7 @@ interface HeroEntity {
   botState: BotState;
   botBuyTimer: number;
   waypointIdx: number;
+  isRemoteHuman?: boolean;
 
   sprite: Phaser.GameObjects.Sprite;
   teamRing: Phaser.GameObjects.Arc;
@@ -237,6 +242,16 @@ export interface BattleSceneInitData {
   inputBridge: BattleInputBridge;
   onHudUpdate: (snapshot: HudSnapshot) => void;
   onMatchEnd: (summary: MatchResultSummary) => void;
+  onlineRoom?: OnlineRoomState | null;
+  onlinePlayerId?: string | null;
+}
+
+interface RemoteHeroQueue {
+  moveX: number;
+  moveY: number;
+  actions: Array<'basic' | 's1' | 's2' | 's3' | 'ult' | 'recall' | 'recovery'>;
+  buyItems: string[];
+  quickChats: QuickChatId[];
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -254,6 +269,16 @@ export class BattleScene extends Phaser.Scene {
   private transport = new LocalBotTransport();
   private lockedTarget: { kind: 'hero' | 'structure' | 'guardian'; id: string } | null = null;
   private targetReticle!: Phaser.GameObjects.Arc;
+
+  private isOnlineHost = false;
+  private isOnlineClient = false;
+  private playerIdToHeroSlotId = new Map<string, string>();
+  private remoteHumanQueues = new Map<string, RemoteHeroQueue>();
+  private pendingFxEvents: OnlineFxEvent[] = [];
+  private stateSyncTimer = 0;
+  private syncSeq = 0;
+  private lastClientMoveSent = { x: 0, y: 0, t: 0 };
+  private unsubOnline: (() => void) | null = null;
 
   private matchTimeSec = 0;
   private waveTimer = 2; // first wave spawns quickly at 2s
@@ -311,9 +336,20 @@ export class BattleScene extends Phaser.Scene {
     this.matchEnded = false;
     this.notices = [];
     this.chatFeed = [];
+    this.playerIdToHeroSlotId.clear();
+    this.remoteHumanQueues.clear();
+    this.pendingFxEvents = [];
+    this.stateSyncTimer = 0;
+    this.syncSeq = 0;
+
+    const isOnline = data.mode === 'online' && Boolean(data.onlineRoom);
+    const isHost = isOnline ? data.onlineRoom!.hostId === data.onlinePlayerId : false;
+    this.isOnlineHost = isOnline && isHost;
+    this.isOnlineClient = isOnline && !isHost;
+
     void this.transport.connect({
       mode: data.mode,
-      localPlayerId: 'blue_0',
+      localPlayerId: data.onlinePlayerId || 'blue_0',
       heroId: data.playerHeroId,
       tickRateHz: 60,
     });
@@ -340,6 +376,48 @@ export class BattleScene extends Phaser.Scene {
     this.setupKeyboard();
     this.setupPointerTargetSelection();
 
+    if (this.initData.mode === 'online') {
+      this.unsubOnline = onlineClient.subscribe({
+        onGameInput: (fromPlayerId, command) => {
+          if (!this.isOnlineHost) return;
+          const slotId = this.playerIdToHeroSlotId.get(fromPlayerId);
+          if (!slotId) return;
+          const q = this.remoteHumanQueues.get(slotId);
+          if (!q) return;
+          if (command.type === 'MOVE') {
+            q.moveX = Math.max(-1, Math.min(1, Number(command.vx) || 0));
+            q.moveY = Math.max(-1, Math.min(1, Number(command.vy) || 0));
+          } else if (command.type === 'ACTION') {
+            q.actions.push(command.action);
+          } else if (command.type === 'BUY_ITEM') {
+            q.buyItems.push(command.itemId);
+          } else if (command.type === 'QUICK_CHAT') {
+            q.quickChats.push(command.chatId);
+          }
+        },
+        onGameState: (snapshot) => {
+          if (this.isOnlineClient) {
+            this.applyWorldSnapshot(snapshot);
+          }
+        },
+        onGameFx: (events) => {
+          if (this.isOnlineClient) {
+            for (const ev of events) {
+              this.applyRemoteFxEvent(ev);
+            }
+          }
+        },
+        onRoomState: (room) => {
+          if (room && this.isOnlineClient && room.hostId === this.initData.onlinePlayerId) {
+            // Host failover promotion
+            this.isOnlineClient = false;
+            this.isOnlineHost = true;
+            this.pushNotice('Anda menjadi Tuan Rumah ruang pertandingan.', 'gold');
+          }
+        },
+      });
+    }
+
     this.cameras.main.startFollow(this.playerHero.sprite, true, 0.14, 0.14);
     this.cameras.main.setZoom(this.scale.width < 760 ? 0.78 : 0.95);
 
@@ -349,6 +427,8 @@ export class BattleScene extends Phaser.Scene {
     window.addEventListener('blur', this.blurHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('blur', this.blurHandler);
+      this.unsubOnline?.();
+      this.unsubOnline = null;
       this.transport.disconnect();
     });
   }
@@ -720,6 +800,85 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private spawnTeams(): void {
+    const lanes: LaneId[] = ['mid', 'top', 'bot', 'bot', 'top'];
+
+    if (this.initData.mode === 'online' && this.initData.onlineRoom) {
+      const room = this.initData.onlineRoom;
+      const localId = this.initData.onlinePlayerId;
+      const botPool = [
+        HEROES.amin,
+        HEROES.faris,
+        HEROES.hakim,
+        HEROES.zahra,
+        HEROES.zaid,
+        HEROES.mumtaz,
+        HEROES.aina,
+      ];
+
+      for (const team of ['blue', 'red'] as Team[]) {
+        for (let i = 0; i < 5; i++) {
+          const onlinePlayer = room.players.find(
+            (p) => p.team === team && p.slotIndex === i
+          );
+          const slotId = `${team}_${i}`;
+          const spawnX =
+            team === 'blue'
+              ? BLUE_FOUNTAIN.x + 80 + (i % 3) * 45
+              : RED_FOUNTAIN.x - 80 - (i % 3) * 45;
+          const spawnY =
+            team === 'blue'
+              ? BLUE_FOUNTAIN.y - 80 - Math.floor(i / 3) * 45
+              : RED_FOUNTAIN.y + 80 + Math.floor(i / 3) * 45;
+
+          if (onlinePlayer) {
+            const isLocal = onlinePlayer.id === localId;
+            const hDef = HEROES[onlinePlayer.heroId];
+            this.playerIdToHeroSlotId.set(onlinePlayer.id, slotId);
+            const hero = this.createHeroEntity(
+              slotId,
+              isLocal ? `${onlinePlayer.name} (Anda)` : onlinePlayer.name,
+              hDef,
+              team,
+              isLocal,
+              lanes[i],
+              spawnX,
+              spawnY
+            );
+            hero.isRemoteHuman = !isLocal;
+            if (!isLocal) {
+              this.remoteHumanQueues.set(slotId, {
+                moveX: 0,
+                moveY: 0,
+                actions: [],
+                buyItems: [],
+                quickChats: [],
+              });
+            }
+            this.heroes.push(hero);
+            if (isLocal) this.playerHero = hero;
+          } else {
+            const hDef = botPool[(i + (team === 'red' ? 2 : 0)) % botPool.length];
+            const hero = this.createHeroEntity(
+              slotId,
+              `${hDef.name} [Bot]`,
+              hDef,
+              team,
+              false,
+              lanes[i],
+              spawnX,
+              spawnY
+            );
+            this.heroes.push(hero);
+          }
+        }
+      }
+
+      if (!this.playerHero && this.heroes.length > 0) {
+        this.playerHero = this.heroes[0];
+      }
+      return;
+    }
+
     const chosenId = this.initData.playerHeroId;
     const otherHeroes = Phaser.Utils.Array.Shuffle(
       HERO_LIST.filter((h) => h.id !== chosenId)
@@ -734,7 +893,6 @@ export class BattleScene extends Phaser.Scene {
       HEROES.zahra,
     ];
 
-    const lanes: LaneId[] = ['mid', 'top', 'bot', 'bot', 'top'];
     const countPerTeam = this.initData.mode === 'training' ? 1 : 5;
 
     for (let i = 0; i < countPerTeam; i++) {
@@ -907,6 +1065,11 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
+    if (this.isOnlineClient) {
+      this.runOnlineClientTick(dt);
+      return;
+    }
+
     this.matchTimeSec += dt;
 
     // Enqueue local input bridge into scalable MatchTransport command stream
@@ -955,7 +1118,7 @@ export class BattleScene extends Phaser.Scene {
       this.spawnMinionWaves();
     }
 
-    // Update Heroes (Player + FSM Bots)
+    // Update Heroes (Local Player + Remote Online Humans + FSM Bots)
     for (const hero of this.heroes) {
       this.updateHero(hero, dt);
     }
@@ -980,6 +1143,19 @@ export class BattleScene extends Phaser.Scene {
 
     // Sync Visuals
     this.syncEntityVisuals();
+
+    // Broadcast authoritative snapshot & FX events when hosting an online match
+    if (this.isOnlineHost) {
+      if (this.pendingFxEvents.length > 0) {
+        onlineClient.sendGameFx(this.pendingFxEvents);
+        this.pendingFxEvents = [];
+      }
+      this.stateSyncTimer -= dt;
+      if (this.stateSyncTimer <= 0) {
+        this.stateSyncTimer = 0.065; // ~15 Hz sync
+        onlineClient.sendGameState(this.buildWorldSnapshot(null));
+      }
+    }
 
     // Emit HUD snapshot at ~12Hz
     this.hudEmitTimer -= dt;
@@ -1091,6 +1267,8 @@ export class BattleScene extends Phaser.Scene {
 
     if (hero.isHuman) {
       this.controlHumanHero(hero, dt);
+    } else if (hero.isRemoteHuman) {
+      this.controlRemoteHumanHero(hero, dt);
     } else {
       this.controlBotHero(hero, dt);
     }
@@ -1166,6 +1344,68 @@ export class BattleScene extends Phaser.Scene {
           this.healHero(hero, healAmt);
           hero.mana = Math.min(hero.maxMana, hero.mana + manaAmt);
           soundEngine.playHeal();
+        }
+      }
+    }
+  }
+
+  private controlRemoteHumanHero(hero: HeroEntity, dt: number): void {
+    const q = this.remoteHumanQueues.get(hero.id);
+    if (!q) return;
+
+    const len = Math.hypot(q.moveX, q.moveY);
+    if (len > 0.08) {
+      const nx = q.moveX / Math.max(1, len);
+      const ny = q.moveY / Math.max(1, len);
+      this.moveHero(hero, nx, ny, dt);
+      hero.recallTimer = 0;
+    } else {
+      hero.vx = 0;
+      hero.vy = 0;
+    }
+
+    if (hero.recallTimer > 0) {
+      hero.recallTimer -= dt;
+      if (hero.recallTimer <= 0) {
+        const f = hero.team === 'blue' ? BLUE_FOUNTAIN : RED_FOUNTAIN;
+        hero.x = f.x + (hero.team === 'blue' ? 40 : -40);
+        hero.y = f.y + (hero.team === 'blue' ? -40 : 40);
+        this.spawnLightBurst(hero.x, hero.y, 0x38bdf8, 12);
+      }
+    }
+
+    while (q.buyItems.length > 0) {
+      this.tryBuyItem(hero, q.buyItems.shift()!);
+    }
+
+    while (q.quickChats.length > 0) {
+      this.triggerHeroQuickChat(hero, q.quickChats.shift()!, false);
+    }
+
+    while (q.actions.length > 0) {
+      const act = q.actions.shift()!;
+      if (act === 'basic') {
+        this.performBasicAttack(hero);
+      } else if (act === 's1') {
+        this.castSkill(hero, 0);
+      } else if (act === 's2') {
+        this.castSkill(hero, 1);
+      } else if (act === 's3') {
+        this.castSkill(hero, 2);
+      } else if (act === 'ult') {
+        this.castSkill(hero, 3);
+      } else if (act === 'recall') {
+        if (hero.recallTimer <= 0) {
+          hero.recallTimer = 3.2;
+          this.spawnFloatingText(hero.x, hero.y - 48, 'Kembali ke Markas...', '#93c5fd');
+        }
+      } else if (act === 'recovery') {
+        if (hero.recoveryCooldown <= 0) {
+          hero.recoveryCooldown = 26;
+          const healAmt = Math.round(hero.maxHp * 0.25);
+          const manaAmt = Math.round(hero.maxMana * 0.18);
+          this.healHero(hero, healAmt);
+          hero.mana = Math.min(hero.maxMana, hero.mana + manaAmt);
         }
       }
     }
@@ -2164,6 +2404,21 @@ export class BattleScene extends Phaser.Scene {
       .setPosition(opts.x, opts.y)
       .setRotation(opts.angle)
       .setVisible(true);
+
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({
+        kind: 'proj',
+        team: opts.team,
+        ownerHeroId: opts.ownerHeroId,
+        x: Math.round(opts.x),
+        y: Math.round(opts.y),
+        angle: Number(opts.angle.toFixed(3)),
+        speed: opts.speed,
+        life: opts.life,
+        tex: opts.tex,
+        aoeRadius: opts.aoeRadius,
+      });
+    }
   }
 
   private updateProjectiles(dt: number): void {
@@ -2288,6 +2543,17 @@ export class BattleScene extends Phaser.Scene {
       power,
       graphic,
     });
+
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({
+        kind: 'aoe',
+        x: Math.round(x),
+        y: Math.round(y),
+        radius,
+        duration,
+        color,
+      });
+    }
   }
 
   private updateAoEZones(dt: number): void {
@@ -2630,30 +2896,40 @@ export class BattleScene extends Phaser.Scene {
     if (this.matchEnded) return;
     this.matchEnded = true;
 
-    if (winner === 'blue') soundEngine.playVictory();
+    const playerTeam = this.playerHero.team;
+    const playerWon = winner === playerTeam;
+
+    if (playerWon) soundEngine.playVictory();
     else soundEngine.playDefeat();
 
     const mvp = [...this.heroes].sort(
       (a, b) => b.kills * 3 + b.assists - b.deaths - (a.kills * 3 + a.assists - a.deaths)
     )[0];
 
-    const redTurretsDestroyed = this.structures.filter(
-      (s) => s.team === 'red' && s.kind === 'turret' && s.destroyed
+    const enemyTeam: Team = playerTeam === 'blue' ? 'red' : 'blue';
+    const enemyTurretsDestroyed = this.structures.filter(
+      (s) => s.team === enemyTeam && s.kind === 'turret' && s.destroyed
     ).length;
 
     const summary: MatchResultSummary = {
       winner,
+      playerTeam,
       durationSec: Math.round(this.matchTimeSec),
       blueKills: this.blueKills,
       redKills: this.redKills,
       playerKills: this.playerHero.kills,
       playerDeaths: this.playerHero.deaths,
       playerAssists: this.playerHero.assists,
-      turretsDestroyedByPlayerTeam: redTurretsDestroyed,
+      turretsDestroyedByPlayerTeam: enemyTurretsDestroyed,
       mvpHeroId: mvp ? mvp.heroDef.id : this.playerHero.heroDef.id,
-      goldReward: winner === 'blue' ? 240 : 110,
-      xpReward: winner === 'blue' ? 180 : 95,
+      goldReward: playerWon ? 240 : 110,
+      xpReward: playerWon ? 180 : 95,
     };
+
+    if (this.isOnlineHost) {
+      onlineClient.sendGameState(this.buildWorldSnapshot(summary));
+      onlineClient.sendGameEnd();
+    }
 
     this.emitHudSnapshot(summary);
     this.initData.onMatchEnd(summary);
@@ -2770,6 +3046,15 @@ export class BattleScene extends Phaser.Scene {
     slot.life = 0.75;
     slot.maxLife = 0.75;
     slot.text.setText(msg).setColor(color).setPosition(x, y).setAlpha(1).setVisible(true);
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({
+        kind: 'text',
+        x: Math.round(x),
+        y: Math.round(y),
+        text: msg,
+        color,
+      });
+    }
   }
 
   private spawnRingPulse(x: number, y: number, maxR: number, color: number, durationSec: number): void {
@@ -2784,6 +3069,16 @@ export class BattleScene extends Phaser.Scene {
       },
       onComplete: () => circle.destroy(),
     });
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({
+        kind: 'ring',
+        x: Math.round(x),
+        y: Math.round(y),
+        radius: maxR,
+        color,
+        duration: durationSec,
+      });
+    }
   }
 
   private spawnSlashArc(x: number, y: number, angle: number, radius: number, color: number): void {
@@ -2798,6 +3093,16 @@ export class BattleScene extends Phaser.Scene {
       duration: 180,
       onComplete: () => g.destroy(),
     });
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({
+        kind: 'slash',
+        x: Math.round(x),
+        y: Math.round(y),
+        angle: Number(angle.toFixed(3)),
+        radius,
+        color,
+      });
+    }
   }
 
   private spawnLightBurst(x: number, y: number, color: number, count: number): void {
@@ -2819,11 +3124,23 @@ export class BattleScene extends Phaser.Scene {
         .setAlpha(1)
         .setVisible(true);
     }
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({
+        kind: 'burst',
+        x: Math.round(x),
+        y: Math.round(y),
+        color,
+        count: actualCount,
+      });
+    }
   }
 
   private pushNotice(text: string, tone: CombatNotice['tone']): void {
     this.notices.unshift({ id: this.noticeCounter++, text, tone });
     if (this.notices.length > 3) this.notices.pop();
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({ kind: 'notice', text, tone });
+    }
   }
 
   private triggerHeroQuickChat(hero: HeroEntity, chatId: QuickChatId, allowBotReply: boolean): void {
@@ -2860,6 +3177,10 @@ export class BattleScene extends Phaser.Scene {
       ttl: 4.5,
     });
     if (this.chatFeed.length > 4) this.chatFeed.pop();
+
+    if (this.isOnlineHost) {
+      this.pendingFxEvents.push({ kind: 'chat', heroSlotId: hero.id, chatId });
+    }
 
     // Allied bots occasionally respond warmly to player quick-chats
     if (allowBotReply && hero.isHuman) {
@@ -3005,5 +3326,388 @@ export class BattleScene extends Phaser.Scene {
       matchResult,
       targetInfo,
     });
+  }
+
+  // ==================== ONLINE CLIENT TICK & SYNC ====================
+  private runOnlineClientTick(dt: number): void {
+    const bridge = this.initData.inputBridge;
+    let mx = bridge.moveX;
+    let my = bridge.moveY;
+
+    if (this.keys) {
+      if (this.keys.a.isDown || this.cursors.left.isDown) mx -= 1;
+      if (this.keys.d.isDown || this.cursors.right.isDown) mx += 1;
+      if (this.keys.w.isDown || this.cursors.up.isDown) my -= 1;
+      if (this.keys.s.isDown || this.cursors.down.isDown) my += 1;
+
+      if (Phaser.Input.Keyboard.JustDown(this.keys.space)) bridge.triggerQueue.push('basic');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.q)) bridge.triggerQueue.push('s1');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.e)) bridge.triggerQueue.push('s2');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.r)) bridge.triggerQueue.push('s3');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.f)) bridge.triggerQueue.push('ult');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.b)) bridge.triggerQueue.push('recall');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.g)) bridge.triggerQueue.push('recovery');
+    }
+
+    const len = Math.hypot(mx, my);
+    const nx = len > 0.08 ? mx / Math.max(1, len) : 0;
+    const ny = len > 0.08 ? my / Math.max(1, len) : 0;
+
+    // Client-side local prediction for instant movement feel
+    if (!this.playerHero.isDead && len > 0.08) {
+      this.moveHero(this.playerHero, nx, ny, dt);
+    }
+
+    // Stream MOVE at ~20Hz or when input starts/stops
+    const now = performance.now();
+    const changed =
+      Math.abs(nx - this.lastClientMoveSent.x) > 0.05 ||
+      Math.abs(ny - this.lastClientMoveSent.y) > 0.05;
+    if ((changed && now - this.lastClientMoveSent.t > 35) || (len > 0.08 && now - this.lastClientMoveSent.t > 55)) {
+      this.lastClientMoveSent = { x: nx, y: ny, t: now };
+      onlineClient.sendGameInput({
+        type: 'MOVE',
+        playerId: this.playerHero.id,
+        seq: ++this.syncSeq,
+        vx: nx,
+        vy: ny,
+      });
+    }
+
+    while (bridge.triggerQueue.length > 0) {
+      const action = bridge.triggerQueue.shift()!;
+      onlineClient.sendGameInput({
+        type: 'ACTION',
+        playerId: this.playerHero.id,
+        seq: ++this.syncSeq,
+        action,
+      });
+    }
+    while (bridge.buyItemQueue.length > 0) {
+      const itemId = bridge.buyItemQueue.shift()!;
+      onlineClient.sendGameInput({
+        type: 'BUY_ITEM',
+        playerId: this.playerHero.id,
+        seq: ++this.syncSeq,
+        itemId,
+      });
+    }
+    while (bridge.quickChatQueue.length > 0) {
+      const chatId = bridge.quickChatQueue.shift()!;
+      onlineClient.sendGameInput({
+        type: 'QUICK_CHAT',
+        playerId: this.playerHero.id,
+        seq: ++this.syncSeq,
+        chatId,
+      });
+    }
+
+    // Visual-only client tick for projectiles, chat bubbles & particles
+    for (let i = this.chatFeed.length - 1; i >= 0; i--) {
+      this.chatFeed[i].ttl -= dt;
+      if (this.chatFeed[i].ttl <= 0) this.chatFeed.splice(i, 1);
+    }
+    for (const h of this.heroes) {
+      if (h.bubbleTimer > 0) {
+        h.bubbleTimer -= dt;
+        if (h.bubbleTimer <= 0) {
+          h.bubbleBg.setVisible(false);
+          h.bubbleText.setVisible(false);
+        }
+      }
+    }
+    for (const p of this.projectiles) {
+      if (!p.active) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      p.sprite.setPosition(p.x, p.y);
+      if (p.life <= 0) this.deactivateProjectile(p);
+    }
+    for (let i = this.aoeZones.length - 1; i >= 0; i--) {
+      const z = this.aoeZones[i];
+      z.duration -= dt;
+      if (z.duration <= 0) {
+        z.graphic.destroy();
+        this.aoeZones.splice(i, 1);
+      }
+    }
+    this.updateFxPools(dt);
+    this.syncEntityVisuals();
+
+    this.hudEmitTimer -= dt;
+    if (this.hudEmitTimer <= 0) {
+      this.hudEmitTimer = 0.08;
+      this.emitHudSnapshot(null);
+    }
+  }
+
+  private buildWorldSnapshot(matchResult: MatchResultSummary | null): OnlineWorldSnapshot {
+    return {
+      seq: ++this.syncSeq,
+      matchTimeSec: Math.round(this.matchTimeSec * 10) / 10,
+      blueKills: this.blueKills,
+      redKills: this.redKills,
+      heroes: this.heroes.map((h) => ({
+        id: h.id,
+        x: Math.round(h.x),
+        y: Math.round(h.y),
+        facing: Number(h.facing.toFixed(2)),
+        hp: Math.round(h.hp),
+        maxHp: h.maxHp,
+        mana: Math.round(h.mana),
+        maxMana: h.maxMana,
+        shield: Math.round(h.shield),
+        level: h.level,
+        xp: Math.round(h.xp),
+        maxXp: h.maxXp,
+        gold: Math.round(h.gold),
+        kills: h.kills,
+        deaths: h.deaths,
+        assists: h.assists,
+        isDead: h.isDead,
+        respawnTimer: Math.max(0, Math.ceil(h.respawnTimer)),
+        recallTimer: Number(h.recallTimer.toFixed(2)),
+        skillCooldowns: [
+          Number(h.skillCooldowns[0].toFixed(1)),
+          Number(h.skillCooldowns[1].toFixed(1)),
+          Number(h.skillCooldowns[2].toFixed(1)),
+          Number(h.skillCooldowns[3].toFixed(1)),
+        ],
+        recoveryCooldown: Number(h.recoveryCooldown.toFixed(1)),
+        guardianBuffTimer: Number(h.guardianBuffTimer.toFixed(1)),
+        items: h.items,
+      })),
+      minions: this.minions
+        .map((m, idx) =>
+          m.active
+            ? {
+                idx,
+                team: m.team,
+                isRanged: m.isRanged,
+                x: Math.round(m.x),
+                y: Math.round(m.y),
+                hp: Math.round(m.hp),
+                maxHp: m.maxHp,
+              }
+            : null
+        )
+        .filter((x): x is NonNullable<typeof x> => x !== null),
+      structures: this.structures.map((s) => ({
+        id: s.id,
+        hp: Math.round(s.hp),
+        destroyed: s.destroyed,
+      })),
+      guardians: this.guardians.map((g) => ({
+        id: g.id,
+        hp: Math.round(g.hp),
+        alive: g.alive,
+        respawnTimer: Math.ceil(g.respawnTimer),
+      })),
+      matchResult,
+    };
+  }
+
+  private applyWorldSnapshot(snap: OnlineWorldSnapshot): void {
+    this.matchTimeSec = snap.matchTimeSec;
+    this.blueKills = snap.blueKills;
+    this.redKills = snap.redKills;
+
+    for (const hs of snap.heroes) {
+      const h = this.heroes.find((item) => item.id === hs.id);
+      if (!h) continue;
+      const dist = Phaser.Math.Distance.Between(h.x, h.y, hs.x, hs.y);
+      if (dist > 140 || hs.isDead !== h.isDead) {
+        h.x = hs.x;
+        h.y = hs.y;
+      } else {
+        const blend = h.isHuman ? 0.38 : 0.65;
+        h.x = Phaser.Math.Linear(h.x, hs.x, blend);
+        h.y = Phaser.Math.Linear(h.y, hs.y, blend);
+      }
+      h.facing = hs.facing;
+      h.hp = hs.hp;
+      h.maxHp = hs.maxHp;
+      h.mana = hs.mana;
+      h.maxMana = hs.maxMana;
+      h.shield = hs.shield;
+      h.level = hs.level;
+      h.xp = hs.xp;
+      h.maxXp = hs.maxXp;
+      h.gold = hs.gold;
+      h.kills = hs.kills;
+      h.deaths = hs.deaths;
+      h.assists = hs.assists;
+      h.respawnTimer = hs.respawnTimer;
+      h.recallTimer = hs.recallTimer;
+      h.skillCooldowns = hs.skillCooldowns;
+      h.recoveryCooldown = hs.recoveryCooldown;
+      h.guardianBuffTimer = hs.guardianBuffTimer;
+      h.items = hs.items;
+
+      if (h.isDead !== hs.isDead) {
+        h.isDead = hs.isDead;
+        const vis = !h.isDead;
+        h.sprite.setVisible(vis);
+        h.teamRing.setVisible(vis);
+        h.hpBarBg.setVisible(vis);
+        h.hpBarFill.setVisible(vis);
+        h.manaBarFill.setVisible(vis);
+        h.nameText.setVisible(vis);
+        if (!vis) {
+          h.shieldRing.setVisible(false);
+          h.guardianRing.setVisible(false);
+        }
+      }
+    }
+
+    // Sync pooled minions
+    const activeMap = new Map(snap.minions.map((m) => [m.idx, m]));
+    this.minions.forEach((m, idx) => {
+      const ms = activeMap.get(idx);
+      if (!ms) {
+        if (m.active) {
+          m.active = false;
+          m.sprite.setVisible(false);
+          m.hpBg.setVisible(false);
+          m.hpFill.setVisible(false);
+        }
+        return;
+      }
+      const tex =
+        ms.team === 'blue'
+          ? ms.isRanged
+            ? 'minion_blue_ranged'
+            : 'minion_blue_melee'
+          : ms.isRanged
+          ? 'minion_red_ranged'
+          : 'minion_red_melee';
+      if (!m.active) {
+        m.active = true;
+        m.x = ms.x;
+        m.y = ms.y;
+        m.sprite.setTexture(tex).setPosition(ms.x, ms.y).setVisible(true).setDisplaySize(36, 36);
+        m.hpBg.setVisible(true);
+        m.hpFill.setFillStyle(ms.team === 'blue' ? 0x38bdf8 : 0xf87171).setVisible(true);
+      } else {
+        m.x = Phaser.Math.Linear(m.x, ms.x, 0.7);
+        m.y = Phaser.Math.Linear(m.y, ms.y, 0.7);
+      }
+      m.team = ms.team;
+      m.isRanged = ms.isRanged;
+      m.hp = ms.hp;
+      m.maxHp = ms.maxHp;
+    });
+
+    // Sync structures
+    for (const ss of snap.structures) {
+      const s = this.structures.find((item) => item.id === ss.id);
+      if (!s) continue;
+      s.hp = ss.hp;
+      if (!s.destroyed && ss.destroyed) {
+        s.destroyed = true;
+        s.sprite.setVisible(false);
+        s.rangeRing.setVisible(false);
+        s.hpBg.setVisible(false);
+        s.hpFill.setVisible(false);
+        s.label.setVisible(false);
+        this.spawnLightBurst(s.x, s.y, 0xfbbf24, 20);
+        soundEngine.playTurretDestroy();
+      }
+    }
+
+    // Sync guardians
+    for (const gs of snap.guardians) {
+      const g = this.guardians.find((item) => item.id === gs.id);
+      if (!g) continue;
+      g.hp = gs.hp;
+      g.respawnTimer = gs.respawnTimer;
+      if (g.alive !== gs.alive) {
+        g.alive = gs.alive;
+        g.sprite.setVisible(gs.alive);
+        g.hpBg.setVisible(gs.alive);
+        g.hpFill.setVisible(gs.alive);
+        g.label.setVisible(gs.alive);
+      }
+    }
+
+    if (snap.matchResult && !this.matchEnded) {
+      this.matchEnded = true;
+      const enemyTeam: Team = this.playerHero.team === 'blue' ? 'red' : 'blue';
+      const turretsDestroyed = this.structures.filter(
+        (s) => s.team === enemyTeam && s.kind === 'turret' && s.destroyed
+      ).length;
+      const result: MatchResultSummary = {
+        ...snap.matchResult,
+        playerTeam: this.playerHero.team,
+        playerKills: this.playerHero.kills,
+        playerDeaths: this.playerHero.deaths,
+        playerAssists: this.playerHero.assists,
+        turretsDestroyedByPlayerTeam: turretsDestroyed,
+        goldReward: snap.matchResult.winner === this.playerHero.team ? 240 : 110,
+        xpReward: snap.matchResult.winner === this.playerHero.team ? 180 : 95,
+      };
+      if (result.winner === this.playerHero.team) soundEngine.playVictory();
+      else soundEngine.playDefeat();
+      this.emitHudSnapshot(result);
+      this.initData.onMatchEnd(result);
+    }
+  }
+
+  private applyRemoteFxEvent(ev: OnlineFxEvent): void {
+    if (ev.kind === 'proj') {
+      this.spawnProjectile({
+        team: ev.team,
+        ownerHeroId: ev.ownerHeroId,
+        x: ev.x,
+        y: ev.y,
+        angle: ev.angle,
+        speed: ev.speed,
+        damage: 0,
+        isMagic: false,
+        piercing: false,
+        aoeRadius: ev.aoeRadius,
+        life: ev.life,
+        tex: ev.tex,
+      });
+    } else if (ev.kind === 'aoe') {
+      const graphic = this.add.graphics().setDepth(4);
+      graphic.fillStyle(ev.color, 0.16);
+      graphic.fillCircle(ev.x, ev.y, ev.radius);
+      graphic.lineStyle(3, ev.color, 0.78);
+      graphic.strokeCircle(ev.x, ev.y, ev.radius);
+      graphic.strokeRect(
+        ev.x - ev.radius * 0.45,
+        ev.y - ev.radius * 0.45,
+        ev.radius * 0.9,
+        ev.radius * 0.9
+      );
+      this.aoeZones.push({
+        team: 'blue',
+        ownerHeroId: '',
+        kind: 'damage_slow',
+        x: ev.x,
+        y: ev.y,
+        radius: ev.radius,
+        duration: ev.duration,
+        tickInterval: 1,
+        tickTimer: 1,
+        power: 0,
+        graphic,
+      });
+    } else if (ev.kind === 'ring') {
+      this.spawnRingPulse(ev.x, ev.y, ev.radius, ev.color, ev.duration);
+    } else if (ev.kind === 'slash') {
+      this.spawnSlashArc(ev.x, ev.y, ev.angle, ev.radius, ev.color);
+    } else if (ev.kind === 'burst') {
+      this.spawnLightBurst(ev.x, ev.y, ev.color, ev.count);
+    } else if (ev.kind === 'text') {
+      this.spawnFloatingText(ev.x, ev.y, ev.text, ev.color);
+    } else if (ev.kind === 'notice') {
+      this.pushNotice(ev.text, ev.tone);
+    } else if (ev.kind === 'chat') {
+      const hero = this.heroes.find((h) => h.id === ev.heroSlotId);
+      if (hero) this.triggerHeroQuickChat(hero, ev.chatId, false);
+    }
   }
 }

@@ -28,8 +28,10 @@ Gim strategi aksi MOBA **5 vs 5** bertema peradaban fantasi bernuansa Islami dal
 - `src/game/ArenaConfig.ts`: Konfigurasi peta `2800x2800`, 3 jalur, 14 struktur, 2 Penjaga Kristal netral, dan rintangan taman/pilar.
 - `src/game/TextureGenerator.ts`: Generator tekstur prosedural Phaser 3 untuk seluruh entitas & proyektil.
 - `src/game/BattleScene.ts`: Mesin simulasi MOBA Phaser 3, pooling, AI bot FSM, pertempuran, dan gelembung pesan cepat.
-- `src/network/MatchTransport.ts`: Kontrak `IMatchTransport` dan `LocalBotTransport` untuk skalabilitas multipemain.
-- `src/components/`: `Lobby.tsx`, `LobbyModals.tsx`, `BattleArena.tsx`, `GameHUD.tsx`, `MobileControls.tsx`, `HeroAvatar.tsx`, `GeometricOrnament.tsx`.
+- `server.ts`: Server Express + WebSocket (`/ws`) untuk ruang pertandingan global, matchmaking cepat, relai input/state real-time, dan signaling WebRTC kamera/mikrofon.
+- `src/network/MatchTransport.ts`: Kontrak `IMatchTransport` dan `LocalBotTransport` untuk simulasi offline & antrean perintah.
+- `src/network/OnlineRoomClient.ts` & `src/network/WebRTCManager.ts`: Klien WebSocket multipemain dunia dan manajer WebRTC peer-to-peer kamera/mikrofon + deteksi bicara.
+- `src/components/`: `Lobby.tsx`, `LobbyModals.tsx`, `OnlineLobbyModal.tsx`, `VoiceVideoStrip.tsx`, `BattleArena.tsx`, `GameHUD.tsx`, `MobileControls.tsx`, `HeroAvatar.tsx`, `GeometricOrnament.tsx`.
 - `src/services/`: `storage.ts` (LocalStorage) dan `sound.ts` (Web Audio API synthesizer & suara alam).
 
 ---
@@ -61,8 +63,9 @@ Gim strategi aksi MOBA **5 vs 5** bertema peradaban fantasi bernuansa Islami dal
 - [x] *Object pooling* untuk proyektil, minion, teks damage melayang, dan partikel cahaya
 - [x] Pengaturan kualitas grafis (`Ringan`, `Sedang`, `Tinggi`)
 - [x] Abstraksi perintah deterministik `IMatchTransport` (`LocalBotTransport`) untuk kesiapan relai jaringan
-- [ ] Server relai WebSocket multipemain daring (*online PvP matchmaking*)
-- [ ] Sinkronisasi akun jarak jauh & papan peringkat global
+- [x] Server relai WebSocket multipemain daring (*online PvP matchmaking*, ruang publik/kode undangan, & obrolan)
+- [x] Komunikasi Kamera & Mikrofon langsung WebRTC peer-to-peer di lobi online & arena pertempuran
+- [ ] Sinkronisasi akun jarak jauh & papan peringkat global persisten
 
 ---
 

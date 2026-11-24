@@ -3,6 +3,8 @@ import {
   BookOpen,
   Gamepad2,
   MessageSquareHeart,
+  Mic,
+  MicOff,
   Pause,
   Play,
   RotateCcw,
@@ -10,26 +12,37 @@ import {
   ShoppingBag,
   Trophy,
   Users,
+  Video,
+  VideoOff,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import { HEROES } from '../data/heroes';
 import { SHOP_ITEMS } from '../data/items';
 import { QUICK_CHATS, QUICK_CHAT_MAP } from '../data/quickChat';
+import { onlineClient } from '../network/OnlineRoomClient';
+import { MediaSnapshot, webrtcManager } from '../network/WebRTCManager';
 import { soundEngine } from '../services/sound';
 import {
   BattleInputBridge,
+  GameMode,
   GraphicsQuality,
   HudSnapshot,
+  OnlinePlayerInfo,
+  OnlineRoomState,
   PlayerSettings,
   QuickChatId,
 } from '../types/game';
 import { HeroAvatar } from './HeroAvatar';
 import { EmoteIcon, StarEmblem } from './GeometricOrnament';
 import { MobileControls } from './MobileControls';
+import { VoiceVideoStrip } from './VoiceVideoStrip';
 
 interface GameHUDProps {
   hud: HudSnapshot;
+  mode: GameMode;
+  onlineRoom?: OnlineRoomState | null;
+  onlinePlayerId?: string | null;
   settings: PlayerSettings;
   showTutorialInitially: boolean;
   inputBridge: React.MutableRefObject<BattleInputBridge>;
@@ -47,6 +60,9 @@ function formatTime(sec: number): string {
 
 export const GameHUD: React.FC<GameHUDProps> = ({
   hud,
+  mode,
+  onlineRoom = null,
+  onlinePlayerId = null,
   settings,
   showTutorialInitially,
   inputBridge,
@@ -63,6 +79,26 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const [virtualStickVisible, setVirtualStickVisible] = useState(true);
   const [tutorialOpen, setTutorialOpen] = useState(showTutorialInitially);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [videoCollapsed, setVideoCollapsed] = useState(false);
+  const [media, setMedia] = useState<MediaSnapshot>(() => webrtcManager.getSnapshot());
+  const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayerInfo[]>(
+    () => onlineRoom?.players || []
+  );
+
+  useEffect(() => {
+    if (mode !== 'online') return;
+    webrtcManager.bindRoomSignaling();
+    const unsubMedia = webrtcManager.subscribe((snap) => setMedia(snap));
+    const unsubRoom = onlineClient.subscribe({
+      onRoomState: (nextRoom) => {
+        if (nextRoom) setOnlinePlayers(nextRoom.players);
+      },
+    });
+    return () => {
+      unsubMedia();
+      unsubRoom();
+    };
+  }, [mode]);
 
   const heroDef = HEROES[hud.heroId];
   const canAffordSomething =
@@ -106,6 +142,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       } else if (e.key.toLowerCase() === 'v' && !pauseOpen && !shopOpen && !scoreboardOpen) {
         soundEngine.playClick();
         setVirtualStickVisible((v) => !v);
+      } else if (mode === 'online' && e.key.toLowerCase() === 'c' && !pauseOpen && !shopOpen && !scoreboardOpen) {
+        void webrtcManager.toggleCamera();
+      } else if (mode === 'online' && e.key.toLowerCase() === 'm' && !pauseOpen && !shopOpen && !scoreboardOpen) {
+        void webrtcManager.toggleMicrophone();
       } else if (quickChatOpen && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
         const chosen = QUICK_CHATS[Number(e.key) - 1];
         if (chosen) handleSendQuickChat(chosen.id);
@@ -113,7 +153,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSendQuickChat, hud.matchResult, inputBridge, pauseOpen, quickChatOpen, scoreboardOpen, shopOpen]);
+  }, [handleSendQuickChat, hud.matchResult, inputBridge, mode, pauseOpen, quickChatOpen, scoreboardOpen, shopOpen]);
 
   const handleBuyItem = (itemId: string) => {
     inputBridge.current.buyItemQueue.push(itemId);
@@ -335,110 +375,153 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
 
-        {/* Top-Right: Quick Chat, Shop, Scoreboard, Tutorial, Mute, Pause */}
-        <div className="pointer-events-auto relative flex items-center gap-1.5 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              soundEngine.playClick();
-              setQuickChatOpen((v) => !v);
-              setShopOpen(false);
-              setScoreboardOpen(false);
-            }}
-            className={`p-2 rounded-lg border transition-colors ${
-              quickChatOpen
-                ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200'
-                : 'bg-[#081523]/92 border-[#d4af37]/40 text-emerald-300 hover:bg-[#10233a]'
-            }`}
-            title="Pesan Cepat & Nilai Baik (T)"
-            aria-label="Buka Pesan Cepat"
-          >
-            <MessageSquareHeart className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              soundEngine.playClick();
-              setShopOpen((v) => !v);
-              setScoreboardOpen(false);
-              setQuickChatOpen(false);
-            }}
-            className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-bold transition-colors ${
-              canAffordSomething
-                ? 'bg-amber-500/20 border-amber-400 text-amber-200 hover:bg-amber-500/30'
-                : 'bg-[#081523]/92 border-[#d4af37]/40 text-[#fdfbf7] hover:bg-[#10233a]'
-            }`}
-            title="Toko Item"
-          >
-            <ShoppingBag className="w-4 h-4 text-[#fbbf24]" />
-            <span className="hidden sm:inline font-mono-num">{hud.gold}</span>
-            {canAffordSomething && (
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
+        {/* Top-Right: Camera/Mic (Online), Quick Chat, Shop, Scoreboard, Tutorial, Mute, Pause */}
+        <div className="pointer-events-auto relative flex flex-col items-end gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {mode === 'online' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void webrtcManager.toggleCamera()}
+                  className={`p-2 rounded-lg border transition-colors ${
+                    media.camOn
+                      ? 'bg-sky-600/30 border-sky-400 text-sky-200'
+                      : 'bg-[#081523]/92 border-[#d4af37]/40 text-slate-300 hover:bg-[#10233a]'
+                  }`}
+                  title={media.camOn ? 'Matikan Kamera (C)' : 'Nyalakan Kamera (C)'}
+                  aria-label="Toggle Kamera"
+                >
+                  {media.camOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void webrtcManager.toggleMicrophone()}
+                  className={`p-2 rounded-lg border transition-colors ${
+                    media.micOn
+                      ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200'
+                      : 'bg-[#081523]/92 border-[#d4af37]/40 text-slate-300 hover:bg-[#10233a]'
+                  }`}
+                  title={media.micOn ? 'Matikan Mikrofon (M)' : 'Nyalakan Mikrofon (M)'}
+                  aria-label="Toggle Mikrofon"
+                >
+                  {media.micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                </button>
+              </>
             )}
-          </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              soundEngine.playClick();
-              setScoreboardOpen((v) => !v);
-              setShopOpen(false);
-              setQuickChatOpen(false);
-            }}
-            className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
-            title="Papan Skor"
-          >
-            <Users className="w-4 h-4" />
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                setQuickChatOpen((v) => !v);
+                setShopOpen(false);
+                setScoreboardOpen(false);
+              }}
+              className={`p-2 rounded-lg border transition-colors ${
+                quickChatOpen
+                  ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200'
+                  : 'bg-[#081523]/92 border-[#d4af37]/40 text-emerald-300 hover:bg-[#10233a]'
+              }`}
+              title="Pesan Cepat & Nilai Baik (T)"
+              aria-label="Buka Pesan Cepat"
+            >
+              <MessageSquareHeart className="w-4 h-4" />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              soundEngine.playClick();
-              setVirtualStickVisible((v) => !v);
-            }}
-            className={`p-2 rounded-lg border transition-colors ${
-              virtualStickVisible
-                ? 'bg-[#081523]/92 border-[#fbbf24]/55 text-[#fbbf24] hover:bg-[#10233a]'
-                : 'bg-[#081523]/92 border-slate-700 text-slate-400 hover:bg-[#10233a]'
-            }`}
-            title={virtualStickVisible ? 'Sembunyikan Stick Virtual (V)' : 'Tampilkan Stick Virtual (V)'}
-            aria-label="Toggle Stick Virtual"
-          >
-            <Gamepad2 className="w-4 h-4" />
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                setShopOpen((v) => !v);
+                setScoreboardOpen(false);
+                setQuickChatOpen(false);
+              }}
+              className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-bold transition-colors ${
+                canAffordSomething
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-200 hover:bg-amber-500/30'
+                  : 'bg-[#081523]/92 border-[#d4af37]/40 text-[#fdfbf7] hover:bg-[#10233a]'
+              }`}
+              title="Toko Item"
+            >
+              <ShoppingBag className="w-4 h-4 text-[#fbbf24]" />
+              <span className="hidden sm:inline font-mono-num">{hud.gold}</span>
+              {canAffordSomething && (
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+              )}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              soundEngine.playClick();
-              setTutorialStep(0);
-              setTutorialOpen(true);
-            }}
-            className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
-            title="Panduan Bermain"
-          >
-            <BookOpen className="w-4 h-4" />
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                setScoreboardOpen((v) => !v);
+                setShopOpen(false);
+                setQuickChatOpen(false);
+              }}
+              className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
+              title="Papan Skor"
+            >
+              <Users className="w-4 h-4" />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onUpdateSettings({ muted: !settings.muted })}
-            className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
-            title={settings.muted ? 'Bunyikan Suara' : 'Bisukan Suara'}
-          >
-            {settings.muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                setVirtualStickVisible((v) => !v);
+              }}
+              className={`p-2 rounded-lg border transition-colors ${
+                virtualStickVisible
+                  ? 'bg-[#081523]/92 border-[#fbbf24]/55 text-[#fbbf24] hover:bg-[#10233a]'
+                  : 'bg-[#081523]/92 border-slate-700 text-slate-400 hover:bg-[#10233a]'
+              }`}
+              title={virtualStickVisible ? 'Sembunyikan Stick Virtual (V)' : 'Tampilkan Stick Virtual (V)'}
+              aria-label="Toggle Stick Virtual"
+            >
+              <Gamepad2 className="w-4 h-4" />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => togglePause(!pauseOpen)}
-            className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
-            title="Jeda (Esc)"
-          >
-            <Pause className="w-4 h-4" />
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playClick();
+                setTutorialStep(0);
+                setTutorialOpen(true);
+              }}
+              className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
+              title="Panduan Bermain"
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onUpdateSettings({ muted: !settings.muted })}
+              className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
+              title={settings.muted ? 'Bunyikan Suara' : 'Bisukan Suara'}
+            >
+              {settings.muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => togglePause(!pauseOpen)}
+              className="p-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 text-slate-200 hover:bg-[#10233a]"
+              title="Jeda (Esc)"
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+          </div>
+
+          {mode === 'online' && onlinePlayers.length > 0 && (
+            <VoiceVideoStrip
+              players={onlinePlayers}
+              localPlayerId={onlinePlayerId}
+              media={media}
+              collapsed={videoCollapsed}
+              onToggleCollapse={() => setVideoCollapsed((c) => !c)}
+            />
+          )}
 
           {/* QUICK CHAT & EMOTE POPOVER */}
           {quickChatOpen && (
@@ -789,77 +872,83 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       )}
 
       {/* VICTORY / DEFEAT SUMMARY MODAL */}
-      {hud.matchResult && (
-        <div className="pointer-events-auto fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="ornate-panel w-full max-w-lg rounded-2xl p-6 text-center space-y-4">
-            <div className="flex justify-center">
-              <Trophy
-                className={`w-12 h-12 ${
-                  hud.matchResult.winner === 'blue' ? 'text-[#fbbf24]' : 'text-slate-400'
-                }`}
-              />
-            </div>
-            <div>
-              <h2
-                className={`font-display text-2xl sm:text-3xl font-extrabold gold-glow ${
-                  hud.matchResult.winner === 'blue' ? 'text-[#fbbf24]' : 'text-rose-300'
-                }`}
-              >
-                {hud.matchResult.winner === 'blue' ? 'KEMENANGAN CAHAYA!' : 'PERTANDINGAN SELESAI'}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                {hud.matchResult.winner === 'blue'
-                  ? 'Kerja sama, amanah, dan kesabaran membawa tim Anda menuju kemenangan!'
-                  : 'Jangan berkecil hati. Kesabaran dan evaluasi akan membawa kemenangan berikutnya.'}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 text-center bg-slate-900/75 p-3 rounded-xl border border-slate-800">
-              <div>
-                <div className="text-[11px] text-slate-400">Skor Tim</div>
-                <div className="font-mono-num text-base font-bold text-white">
-                  {hud.matchResult.blueKills} - {hud.matchResult.redKills}
-                </div>
+      {hud.matchResult && (() => {
+        const playerTeam = hud.matchResult.playerTeam || 'blue';
+        const playerWon = hud.matchResult.winner === playerTeam;
+        return (
+          <div className="pointer-events-auto fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <div className="ornate-panel w-full max-w-lg rounded-2xl p-6 text-center space-y-4">
+              <div className="flex justify-center">
+                <Trophy
+                  className={`w-12 h-12 ${
+                    playerWon ? 'text-[#fbbf24]' : 'text-slate-400'
+                  }`}
+                />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400">K / D / A Anda</div>
-                <div className="font-mono-num text-base font-bold text-emerald-400">
-                  {hud.matchResult.playerKills}/{hud.matchResult.playerDeaths}/{hud.matchResult.playerAssists}
+                <h2
+                  className={`font-display text-2xl sm:text-3xl font-extrabold gold-glow ${
+                    playerWon ? 'text-[#fbbf24]' : 'text-rose-300'
+                  }`}
+                >
+                  {playerWon ? 'KEMENANGAN CAHAYA!' : 'PERTANDINGAN SELESAI'}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1">
+                  {playerWon
+                    ? 'Kerja sama, amanah, dan kesabaran membawa tim Anda menuju kemenangan!'
+                    : 'Jangan berkecil hati. Kesabaran dan evaluasi akan membawa kemenangan berikutnya.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5 text-center bg-slate-900/75 p-3 rounded-xl border border-slate-800">
+                <div>
+                  <div className="text-[11px] text-slate-400">Skor Tim</div>
+                  <div className="font-mono-num text-base font-bold text-white">
+                    {hud.matchResult.blueKills} - {hud.matchResult.redKills}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-400">K / D / A Anda</div>
+                  <div className="font-mono-num text-base font-bold text-emerald-400">
+                    {hud.matchResult.playerKills}/{hud.matchResult.playerDeaths}/{hud.matchResult.playerAssists}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-400">Durasi</div>
+                  <div className="font-mono-num text-base font-bold text-amber-300">
+                    {formatTime(hud.matchResult.durationSec)}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-[11px] text-slate-400">Durasi</div>
-                <div className="font-mono-num text-base font-bold text-amber-300">
-                  {formatTime(hud.matchResult.durationSec)}
-                </div>
+
+              <div className="flex items-center justify-center gap-4 text-xs font-semibold text-amber-200">
+                <span>+{hud.matchResult.goldReward} Emas Kemajuan</span>
+                <span>·</span>
+                <span>+{hud.matchResult.xpReward} XP Akun</span>
               </div>
-            </div>
 
-            <div className="flex items-center justify-center gap-4 text-xs font-semibold text-amber-200">
-              <span>+{hud.matchResult.goldReward} Emas Kemajuan</span>
-              <span>·</span>
-              <span>+{hud.matchResult.xpReward} XP Akun</span>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onExitToLobby}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm"
-              >
-                Kembali ke Lobi
-              </button>
-              <button
-                type="button"
-                onClick={onPlayAgain}
-                className="flex-1 py-2.5 rounded-xl bg-[#d4af37] hover:bg-[#eab308] text-[#07111e] font-bold text-sm flex items-center justify-center gap-1.5"
-              >
-                <RotateCcw className="w-4 h-4" /> Main Lagi
-              </button>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={onExitToLobby}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm"
+                >
+                  Kembali ke Lobi
+                </button>
+                {mode !== 'online' && (
+                  <button
+                    type="button"
+                    onClick={onPlayAgain}
+                    className="flex-1 py-2.5 rounded-xl bg-[#d4af37] hover:bg-[#eab308] text-[#07111e] font-bold text-sm flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className="w-4 h-4" /> Main Lagi
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
