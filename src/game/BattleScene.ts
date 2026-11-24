@@ -1,9 +1,7 @@
 import Phaser from 'phaser';
-import { HEROES, HERO_LIST } from '../data/heroes';
-import { SHOP_ITEMS } from '../data/items';
-import { QUICK_CHAT_MAP } from '../data/quickChat';
 import { LocalBotTransport } from '../network/MatchTransport';
 import { onlineClient } from '../network/OnlineRoomClient';
+import { HEROES, HERO_LIST, QUICK_CHAT_MAP, SHOP_ITEMS } from '../services/gameCatalog';
 import { soundEngine } from '../services/sound';
 import {
   BattleInputBridge,

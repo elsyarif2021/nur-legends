@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HEROES } from '../data/heroes';
+import { HEROES } from '../services/gameCatalog';
 import { HeroId } from '../types/game';
 
 interface HeroAvatarProps {

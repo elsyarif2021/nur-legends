@@ -14,9 +14,9 @@ import {
   VideoOff,
   X,
 } from 'lucide-react';
-import { HEROES, HERO_LIST } from '../data/heroes';
 import { onlineClient, OnlineConnectionStatus } from '../network/OnlineRoomClient';
 import { MediaSnapshot, webrtcManager } from '../network/WebRTCManager';
+import { HEROES, HERO_LIST } from '../services/gameCatalog';
 import { soundEngine } from '../services/sound';
 import {
   HeroId,

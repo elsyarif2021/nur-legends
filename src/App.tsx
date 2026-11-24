@@ -10,6 +10,7 @@ import { Lobby } from './components/Lobby';
 import { onlineClient } from './network/OnlineRoomClient';
 import { webrtcManager } from './network/WebRTCManager';
 import { authClient } from './services/authClient';
+import { hydrateCatalogFromConvex } from './services/gameCatalog';
 import { soundEngine } from './services/sound';
 import {
   applyXpAndGold,
@@ -56,6 +57,10 @@ export default function App() {
   );
   const [onlineRoom, setOnlineRoom] = useState<OnlineRoomState | null>(null);
   const [onlinePlayerId, setOnlinePlayerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void hydrateCatalogFromConvex();
+  }, []);
 
   useEffect(() => {
     soundEngine.configure(

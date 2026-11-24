@@ -1,13 +1,27 @@
-import React, { useState } from 'react';
-import { Check, CheckCircle2, History, RotateCcw, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { HEROES, HERO_LIST } from '../data/heroes';
-import { QUIZ_QUESTIONS } from '../data/quiz';
+import React, { useEffect, useState } from 'react';
+import {
+  Check,
+  CheckCircle2,
+  History,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Trophy,
+  X,
+} from 'lucide-react';
+import {
+  fetchLeaderboard,
+  HEROES,
+  HERO_LIST,
+  QUIZ_QUESTIONS,
+} from '../services/gameCatalog';
 import { soundEngine } from '../services/sound';
 import {
   BattleRecord,
   DailyMission,
   GraphicsQuality,
   HeroId,
+  LeaderboardEntry,
   PlayerProgress,
   PlayerSettings,
 } from '../types/game';
@@ -637,3 +651,103 @@ export const SettingsModal: React.FC<{
     </div>
   );
 };
+
+// 6. GLOBAL LEADERBOARD MODAL (Convex)
+export const LeaderboardModal: React.FC<{
+  onClose: () => void;
+}> = ({ onClose }) => {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetchLeaderboard()
+      .then((rows) => {
+        if (active) setEntries(rows);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+      <div className="ornate-panel w-full max-w-xl rounded-2xl p-5 sm:p-6 max-h-[88vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-[#d4af37]/25 pb-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-[#fbbf24]" />
+            <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbbf24]">
+              Papan Peringkat Penjaga Cahaya
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-10 text-center text-sm text-slate-300">
+            Memuat peringkat dari database...
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="py-10 text-center text-sm text-slate-400">
+            Belum ada data peringkat tersimpan. Buat akun atau masuk lalu selesaikan pertandingan untuk masuk ke papan peringkat!
+          </div>
+        ) : (
+          <div className="space-y-2 overflow-y-auto custom-scroll pr-1">
+            {entries.map((entry, idx) => {
+              const hero = HEROES[entry.heroId] || HEROES.amin;
+              return (
+                <div
+                  key={`${entry.playerName}_${idx}`}
+                  className="p-3 rounded-xl bg-slate-900/75 border border-slate-800 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center font-mono-num text-xs font-extrabold shrink-0 ${
+                        idx === 0
+                          ? 'bg-amber-400 text-[#07111e]'
+                          : idx === 1
+                          ? 'bg-slate-300 text-[#07111e]'
+                          : idx === 2
+                          ? 'bg-amber-700 text-white'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      #{idx + 1}
+                    </span>
+                    <HeroAvatar heroId={hero.id} size="sm" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-white truncate">
+                        {entry.playerName}
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate">
+                        {hero.name} · {entry.wins} Menang / {entry.matches} Laga
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono-num text-xs font-bold text-[#fbbf24]">
+                      Lv.{entry.level}
+                    </div>
+                    <div className="font-mono-num text-[11px] text-emerald-300">
+                      {entry.xp} XP
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+

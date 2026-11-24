@@ -20,19 +20,17 @@ Gim strategi aksi MOBA **5 vs 5** bertema peradaban fantasi bernuansa Islami dal
 
 ## Arsitektur Proyek
 
-- `src/types/game.ts`: Definisi tipe data pahlawan, item, kuis, pesan cepat, HUD snapshot, akun pengguna, ruang online, dan input bridge.
-- `src/data/heroes.ts`: 7 pahlawan unik (**Amin**, **Faris**, **Hakim**, **Zahra**, **Zaid**, **Pangeran Mumtaz**, **Putri Aina**) beserta statistik dan 28 skill.
-- `src/data/items.ts`: 8 artefak Toko Item dalam pertandingan.
-- `src/data/quiz.ts`: 12 soal Kuis Akhlak, Adab, dan Pengetahuan Islam beserta penjelasan.
-- `src/data/quickChat.ts`: 6 pesan cepat positif & nilai moral.
+- `src/types/game.ts`: Definisi tipe data pahlawan, item, kuis, pesan cepat, HUD snapshot, akun pengguna, papan peringkat, ruang online, dan input bridge.
+- `convex/`: Skema database Convex (`schema.ts`), data awal (`seedData.ts`), query/mutasi katalog & leaderboard (`catalog.ts`), fungsi internal akun (`accountsDb.ts`), dan aksi autentikasi Node.js terenkripsi `scrypt` (`authActions.ts`).
+- `src/services/convexClient.ts` & `src/services/gameCatalog.ts`: Klien Convex reaktif untuk menyinkronkan data **7 pahlawan**, **8 artefak item**, **12 soal kuis**, **6 pesan cepat**, dan **papan peringkat global** dari database Convex.
 - `src/game/ArenaConfig.ts`: Konfigurasi peta `2800x2800`, 3 jalur, 14 struktur, 2 Penjaga Kristal netral, dan rintangan taman/pilar.
 - `src/game/TextureGenerator.ts`: Generator tekstur prosedural Phaser 3 untuk seluruh entitas & proyektil.
 - `src/game/BattleScene.ts`: Mesin simulasi MOBA Phaser 3, pooling, AI bot FSM, pertempuran, gelembung pesan cepat, dan sinkronisasi host/klien daring.
-- `server.ts`: Server Express + WebSocket (`/ws`) untuk autentikasi akun (`/api/auth/*` dengan hashing `scrypt` & token sesi Bearer), penyimpanan progres akun, ruang pertandingan global, matchmaking cepat, relai input/state real-time, dan signaling WebRTC kamera/mikrofon.
+- `server.ts`: Server Express + WebSocket (`/ws`) untuk ruang pertandingan global, matchmaking cepat, relai input/state real-time, signaling WebRTC kamera/mikrofon, dan fallback autentikasi/leaderboard lokal.
 - `src/network/MatchTransport.ts`: Kontrak `IMatchTransport` dan `LocalBotTransport` untuk simulasi offline & antrean perintah.
 - `src/network/OnlineRoomClient.ts` & `src/network/WebRTCManager.ts`: Klien WebSocket multipemain dunia dan manajer WebRTC peer-to-peer kamera/mikrofon + deteksi bicara.
-- `src/components/`: `AuthModal.tsx`, `Lobby.tsx`, `LobbyModals.tsx`, `OnlineLobbyModal.tsx`, `VoiceVideoStrip.tsx`, `BattleArena.tsx`, `GameHUD.tsx`, `MobileControls.tsx`, `HeroAvatar.tsx`, `GeometricOrnament.tsx`.
-- `src/services/`: `authClient.ts` (klien login/daftar & sinkronisasi akun di memori), `storage.ts` (LocalStorage), dan `sound.ts` (Web Audio API synthesizer & suara alam).
+- `src/components/`: `AuthModal.tsx`, `Lobby.tsx`, `LobbyModals.tsx` (termasuk `LeaderboardModal`), `OnlineLobbyModal.tsx`, `VoiceVideoStrip.tsx`, `BattleArena.tsx`, `GameHUD.tsx`, `MobileControls.tsx`, `HeroAvatar.tsx`, `GeometricOrnament.tsx`.
+- `src/services/`: `authClient.ts` (autentikasi ke Convex/server & token di memori), `storage.ts` (LocalStorage), dan `sound.ts` (Web Audio API synthesizer & suara alam).
 
 ---
 
@@ -65,8 +63,8 @@ Gim strategi aksi MOBA **5 vs 5** bertema peradaban fantasi bernuansa Islami dal
 - [x] Abstraksi perintah deterministik `IMatchTransport` (`LocalBotTransport`) untuk kesiapan relai jaringan
 - [x] Server relai WebSocket multipemain daring (*online PvP matchmaking*, ruang publik/kode undangan, & obrolan)
 - [x] Komunikasi Kamera & Mikrofon langsung WebRTC peer-to-peer di lobi online & arena pertempuran
-- [x] Sistem Login & Pendaftaran Akun (Nama, Email, & Password ter-hash di server) beserta sinkronisasi progres akun
-- [ ] Papan peringkat global persisten (*global leaderboard*)
+- [x] Sistem Login & Pendaftaran Akun (Nama, Email, & Password ter-hash `scrypt` di Convex/server) beserta sinkronisasi progres akun
+- [x] Papan peringkat global persisten (*global leaderboard* di Convex)
 
 ---
 
@@ -82,17 +80,15 @@ npx tsx src/tests/verifyGameSystems.ts  # Uji integritas sistem & logika gim
 
 ---
 
-## Integrasi & Deployment Vercel
+## Integrasi Convex & Deployment Vercel
 
-Proyek ini sudah dikonfigurasi dengan `vercel.json` untuk build Vite SPA (`dist/`), dukungan `Permissions-Policy` (`camera=(self), microphone=(self), fullscreen=(self)`), serta dukungan CORS dan WebSocket tervalidasi untuk origin Vercel (`https://nur-legends-git-main-elsyarif2021s-projects.vercel.app`).
+Proyek ini sudah terintegrasi dengan database **Convex** (`/convex`) dan konfigurasi **Vercel** (`vercel.json`) untuk build Vite SPA (`dist/`), dukungan `Permissions-Policy` (`camera=(self), microphone=(self), fullscreen=(self)`), serta dukungan CORS dan WebSocket tervalidasi untuk origin Vercel (`https://nur-legends-git-main-elsyarif2021s-projects.vercel.app`).
 
-1. **Deploy Frontend di Vercel**:
-   - Hubungkan repositori ke proyek Vercel (`Framework Preset: Vite`, `Build Command: npm run build`, `Output Directory: dist`).
-2. **Konfigurasi Backend Persistent (untuk Akun & Multipemain WebSocket `/ws`)**:
-   - Karena Vercel Serverless tidak mendukung server WebSocket stateful jangka panjang, jalankan `server.ts` pada host Node.js persisten (misalnya Cloud Run, Railway, Render, atau Fly.io) dengan `ALLOWED_ORIGINS="https://nur-legends-git-main-elsyarif2021s-projects.vercel.app"`.
+1. **Konfigurasi Database Convex & Vercel**:
    - Di **Vercel Project Settings -> Environment Variables**, tambahkan:
-     - `VITE_API_URL` = URL HTTPS server Node.js Anda
-     - `VITE_WS_URL` = URL WSS WebSocket server Node.js Anda (`wss://.../ws`)
-   - Jika dijalankan tanpa backend eksternal, mode **5 vs 5 Bot** dan **Mode Latihan** tetap berfungsi penuh di browser.
-
-
+     - `VITE_CONVEX_URL` = URL deployment Convex Anda (contoh: `https://pleasant-squid-36.convex.cloud`)
+     - `CONVEX_DEPLOY_KEY` = Deploy key produksi Convex (disimpan hanya di Environment Variables server/CI, tidak pernah di kode klien)
+   - Dengan `VITE_CONVEX_URL`, fitur **Login/Daftar Akun, Sinkronisasi Progres, Katalog Pahlawan/Item/Kuis/Pesan Cepat, dan Papan Peringkat Global** berjalan langsung ke Convex tanpa server backend tambahan.
+2. **Konfigurasi WebSocket Multipemain `/ws` (Opsional untuk PvP Dunia)**:
+   - Jalankan `server.ts` pada host Node.js persisten (misalnya Cloud Run, Railway, Render, atau Fly.io) dengan `ALLOWED_ORIGINS="https://nur-legends-git-main-elsyarif2021s-projects.vercel.app"`, lalu tambahkan `VITE_WS_URL` (`wss://.../ws`) di Environment Variables Vercel.
+   - Jika dijalankan tanpa server WebSocket eksternal, mode **5 vs 5 Bot** dan **Mode Latihan** tetap berfungsi penuh di browser.

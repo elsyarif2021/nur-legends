@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
+import { ConvexHttpClient } from 'convex/browser';
+import { makeFunctionReference } from 'convex/server';
 import { createServer as createViteServer } from 'vite';
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -464,6 +466,45 @@ async function startServer(): Promise<void> {
 
   app.get('/api/rooms', (_req, res) => {
     res.json({ rooms: getPublicRoomSummaries() });
+  });
+
+  app.get('/api/leaderboard', async (_req, res) => {
+    const convexUrl = (process.env.CONVEX_URL || process.env.VITE_CONVEX_URL || '').trim();
+    if (convexUrl) {
+      try {
+        const client = new ConvexHttpClient(convexUrl);
+        const ref = makeFunctionReference<'query', Record<string, never>, unknown[]>(
+          'catalog:getLeaderboard'
+        );
+        const entries = await client.query(ref, {});
+        res.json({ entries });
+        return;
+      } catch {
+        // Fall back to local in-memory accounts if Convex query fails
+      }
+    }
+
+    const entries = Array.from(accountsById.values())
+      .map((acc) => {
+        const prog = (acc.progress || {}) as Record<string, unknown>;
+        const history = Array.isArray(prog.battleHistory)
+          ? (prog.battleHistory as Array<Record<string, unknown>>)
+          : [];
+        const wins = history.filter((h) => h && h.result === 'victory').length;
+        return {
+          playerName: acc.name,
+          heroId: sanitizeHeroId(prog.selectedHeroId),
+          level: Math.max(1, Math.floor(Number(prog.level) || 1)),
+          xp: Math.max(0, Math.floor(Number(prog.xp) || 0)),
+          wins,
+          matches: history.length,
+          updatedAt: acc.updatedAt,
+        };
+      })
+      .sort((a, b) => b.level - a.level || b.xp - a.xp || b.wins - a.wins)
+      .slice(0, 25);
+
+    res.json({ entries });
   });
 
   app.post('/api/auth/register', (req, res) => {

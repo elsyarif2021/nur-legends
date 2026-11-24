@@ -1,5 +1,7 @@
+import { convexApi } from '../config/convexApi';
 import { getApiUrl } from '../config/endpoints';
 import { AuthUser, PlayerProgress } from '../types/game';
+import { getConvexHttpClient } from './convexClient';
 
 export interface AuthSessionResult {
   user: AuthUser;
@@ -35,6 +37,22 @@ class AuthClient {
     password: string;
     progress?: PlayerProgress;
   }): Promise<AuthSessionResult> {
+    const convex = getConvexHttpClient();
+    if (convex) {
+      const result = await convex.action(convexApi.authActions.register, {
+        name: params.name,
+        email: params.email,
+        password: params.password,
+        progress: params.progress,
+      });
+      if (!result.ok) {
+        throw new Error(result.error || 'Gagal membuat akun di Convex.');
+      }
+      this.token = result.token;
+      this.currentUser = result.user;
+      return { user: result.user, progress: result.progress ?? null };
+    }
+
     const res = await fetch(getApiUrl('/api/auth/register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,7 +66,7 @@ class AuthClient {
     }>(res);
     if (!data) {
       throw new Error(
-        'Server akun belum terhubung. Atur VITE_API_URL ke server backend Node.js atau lanjutkan sebagai Tamu.'
+        'Database akun belum terhubung. Atur VITE_CONVEX_URL atau VITE_API_URL, atau lanjutkan sebagai Tamu.'
       );
     }
     if (!res.ok || !data.token || !data.user) {
@@ -64,6 +82,21 @@ class AuthClient {
     email: string;
     password: string;
   }): Promise<AuthSessionResult> {
+    const convex = getConvexHttpClient();
+    if (convex) {
+      const result = await convex.action(convexApi.authActions.login, {
+        email: params.email,
+        password: params.password,
+        name: params.name,
+      });
+      if (!result.ok) {
+        throw new Error(result.error || 'Email atau password tidak sesuai.');
+      }
+      this.token = result.token;
+      this.currentUser = result.user;
+      return { user: result.user, progress: result.progress ?? null };
+    }
+
     const res = await fetch(getApiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,7 +110,7 @@ class AuthClient {
     }>(res);
     if (!data) {
       throw new Error(
-        'Server akun belum terhubung. Atur VITE_API_URL ke server backend Node.js atau lanjutkan sebagai Tamu.'
+        'Database akun belum terhubung. Atur VITE_CONVEX_URL atau VITE_API_URL, atau lanjutkan sebagai Tamu.'
       );
     }
     if (!res.ok || !data.token || !data.user) {
@@ -90,6 +123,22 @@ class AuthClient {
 
   public async syncProgress(progress: PlayerProgress): Promise<void> {
     if (!this.token) return;
+    const convex = getConvexHttpClient();
+    if (convex) {
+      try {
+        const result = await convex.action(convexApi.authActions.syncProgress, {
+          token: this.token,
+          progress,
+        });
+        if (result.ok) {
+          this.currentUser = result.user;
+        }
+      } catch {
+        // Ignore transient network errors when syncing background progress
+      }
+      return;
+    }
+
     try {
       const res = await fetch(getApiUrl('/api/auth/progress'), {
         method: 'PUT',
@@ -113,6 +162,17 @@ class AuthClient {
     this.token = null;
     this.currentUser = null;
     if (!tok) return;
+
+    const convex = getConvexHttpClient();
+    if (convex) {
+      try {
+        await convex.action(convexApi.authActions.logout, { token: tok });
+      } catch {
+        // Ignore network errors on logout
+      }
+      return;
+    }
+
     try {
       await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
@@ -125,4 +185,3 @@ class AuthClient {
 }
 
 export const authClient = new AuthClient();
-

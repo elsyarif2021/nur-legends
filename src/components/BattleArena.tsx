@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
-import { HEROES } from '../data/heroes';
 import { BattleScene, BattleSceneInitData } from '../game/BattleScene';
+import { HEROES } from '../services/gameCatalog';
 import {
   BattleInputBridge,
   GameMode,

@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-import { HEROES, HERO_LIST } from '../data/heroes';
-import { SHOP_ITEMS } from '../data/items';
-import { QUICK_CHATS, QUICK_CHAT_MAP } from '../data/quickChat';
-import { QUIZ_QUESTIONS } from '../data/quiz';
+import {
+  HEROES,
+  HERO_LIST,
+  QUICK_CHATS,
+  QUICK_CHAT_MAP,
+  QUIZ_QUESTIONS,
+  SHOP_ITEMS,
+} from '../services/gameCatalog';
 import {
   ARENA_OBSTACLES,
   INITIAL_STRUCTURES,

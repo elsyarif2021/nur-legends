@@ -17,11 +17,9 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { HEROES } from '../data/heroes';
-import { SHOP_ITEMS } from '../data/items';
-import { QUICK_CHATS, QUICK_CHAT_MAP } from '../data/quickChat';
 import { onlineClient } from '../network/OnlineRoomClient';
 import { MediaSnapshot, webrtcManager } from '../network/WebRTCManager';
+import { HEROES, QUICK_CHAT_MAP, QUICK_CHATS, SHOP_ITEMS } from '../services/gameCatalog';
 import { soundEngine } from '../services/sound';
 import {
   BattleInputBridge,

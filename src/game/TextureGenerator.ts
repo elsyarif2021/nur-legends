@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HERO_LIST } from '../data/heroes';
+import { HERO_LIST } from '../services/gameCatalog';
 import { HeroId } from '../types/game';
 
 function createCanvasTex(

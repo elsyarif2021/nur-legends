@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { HEROES } from '../data/heroes';
+import { HEROES } from '../services/gameCatalog';
 import { BattleInputBridge, HudSnapshot } from '../types/game';
 import { SkillIcon } from './GeometricOrnament';
 

@@ -11,11 +11,12 @@ import {
   Settings,
   Sparkles,
   Swords,
+  Trophy,
   Users,
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { HEROES, HERO_LIST } from '../data/heroes';
+import { useGameCatalog } from '../services/gameCatalog';
 import { soundEngine } from '../services/sound';
 import { getXpForNextLevel } from '../services/storage';
 import {
@@ -31,6 +32,7 @@ import { HeroAvatar } from './HeroAvatar';
 import {
   HeroCollectionModal,
   HistoryModal,
+  LeaderboardModal,
   MissionsModal,
   QuizModal,
   SettingsModal,
@@ -54,7 +56,15 @@ interface LobbyProps {
   onClearInitialRoomCode?: () => void;
 }
 
-type ModalTab = 'heroes' | 'missions' | 'quiz' | 'history' | 'settings' | 'online' | null;
+type ModalTab =
+  | 'heroes'
+  | 'missions'
+  | 'quiz'
+  | 'history'
+  | 'leaderboard'
+  | 'settings'
+  | 'online'
+  | null;
 
 const PALACE_BG = '/src/assets/images/palace_lobby_bg_1795510715124.jpg';
 
@@ -79,7 +89,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const selectedHero = HEROES[progress.selectedHeroId];
+  const { heroes, heroList } = useGameCatalog();
+  const selectedHero = heroes[progress.selectedHeroId] || heroList[0];
   const nextXp = getXpForNextLevel(progress.level);
   const unclaimedMissions = progress.dailyMissions.filter(
     (m) => m.progress >= m.target && !m.claimed
@@ -248,7 +259,7 @@ export const Lobby: React.FC<LobbyProps> = ({
             <Users className="w-5 h-5 text-[#fbbf24]" />
             <div>
               <div className="text-sm font-bold text-white">Koleksi Pahlawan</div>
-              <div className="text-[11px] text-slate-400 hidden sm:block">{HERO_LIST.length} Penjaga Cahaya</div>
+              <div className="text-[11px] text-slate-400 hidden sm:block">{heroList.length} Penjaga Cahaya</div>
             </div>
           </button>
 
@@ -291,6 +302,20 @@ export const Lobby: React.FC<LobbyProps> = ({
               <div className="text-sm font-bold text-white">Riwayat Pertempuran</div>
               <div className="text-[11px] text-slate-400 hidden sm:block">
                 {progress.battleHistory.length} Pertandingan
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openModal('leaderboard')}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#0b1b2e]/90 hover:bg-[#122a46] border border-[#d4af37]/35 text-left transition-colors whitespace-nowrap shrink-0"
+          >
+            <Trophy className="w-5 h-5 text-amber-300" />
+            <div>
+              <div className="text-sm font-bold text-white">Papan Peringkat</div>
+              <div className="text-[11px] text-slate-400 hidden sm:block">
+                Ranking Global
               </div>
             </div>
           </button>
@@ -430,6 +455,10 @@ export const Lobby: React.FC<LobbyProps> = ({
           history={progress.battleHistory}
           onClose={() => setActiveModal(null)}
         />
+      )}
+
+      {activeModal === 'leaderboard' && (
+        <LeaderboardModal onClose={() => setActiveModal(null)} />
       )}
 
       {activeModal === 'settings' && (

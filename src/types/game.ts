@@ -379,3 +379,12 @@ export interface AuthUser {
   createdAt: number;
 }
 
+export interface LeaderboardEntry {
+  playerName: string;
+  heroId: HeroId;
+  level: number;
+  xp: number;
+  wins: number;
+  matches: number;
+  updatedAt: number;
+}

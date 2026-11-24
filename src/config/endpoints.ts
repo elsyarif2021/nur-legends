@@ -21,8 +21,12 @@ function sanitizeWsUrl(raw: string | undefined): string {
   }
 }
 
-const API_BASE = sanitizeHttpBase(import.meta.env.VITE_API_URL as string | undefined);
-const WS_OVERRIDE = sanitizeWsUrl(import.meta.env.VITE_WS_URL as string | undefined);
+const viteEnv =
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? (import.meta.env as Record<string, unknown>)
+    : undefined;
+const API_BASE = sanitizeHttpBase(viteEnv?.VITE_API_URL as string | undefined);
+const WS_OVERRIDE = sanitizeWsUrl(viteEnv?.VITE_WS_URL as string | undefined);
 
 export function getApiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
