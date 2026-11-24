@@ -15,6 +15,19 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   visible = true,
 }) => {
   const heroDef = HEROES[hud.heroId];
+  const [custom, setCustom] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('nur_controls') || '{}');
+      const clamp = (n: unknown, fallback: number, min: number, max: number) => typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+      return { sensitivity: clamp(v.sensitivity, 1, .6, 1.5), opacity: clamp(v.opacity, 1, .45, 1), size: clamp(v.size, 1, .8, 1.15) };
+    } catch { return { sensitivity: 1, opacity: 1, size: 1 }; }
+  });
+  const [customOpen, setCustomOpen] = useState(false);
+  const updateCustom = (key: 'sensitivity' | 'opacity' | 'size', value: number) => {
+    const next = { ...custom, [key]: value };
+    setCustom(next);
+    try { localStorage.setItem('nur_controls', JSON.stringify(next)); } catch { /* optional */ }
+  };
 
   // Virtual Analog Stick State (supports Mouse/Trackpad on Laptop & PC + Touch on Mobile)
   const zoneRef = useRef<HTMLDivElement | null>(null);
@@ -139,7 +152,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       dy = (dy / dist) * maxRadius;
     }
     const magnitude = Math.min(1, dist / maxRadius);
-    const strength = Math.max(0, (magnitude - 0.1) / 0.9);
+    const strength = Math.min(1, Math.max(0, (magnitude - 0.1) / 0.9) * custom.sensitivity);
     inputBridge.current.moveX = dist > 0 ? (cx - origin.x) / dist * strength : 0;
     inputBridge.current.moveY = dist > 0 ? (cy - origin.y) / dist * strength : 0;
     pendingKnob.current = { dx, dy };
@@ -232,10 +245,16 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
   return (
     <div className="pointer-events-none fixed inset-0 z-20 flex items-end justify-between touch-none" style={{ paddingLeft: "max(12px, env(safe-area-inset-left))", paddingRight: "max(12px, env(safe-area-inset-right))", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+      <button type="button" className="pointer-events-auto absolute left-3 bottom-[48dvh] rounded bg-slate-950/90 border border-amber-500/50 px-2 py-1 text-xs text-amber-200" onClick={() => { stopAttack(); inputBridge.current.moveX = 0; inputBridge.current.moveY = 0; setCustomOpen(v => !v); }}>Kontrol</button>
+      {customOpen && <div className="pointer-events-auto absolute left-3 bottom-[52dvh] z-50 rounded-lg bg-slate-950 border border-amber-500/50 p-3 text-xs text-white space-y-2">
+        {(['sensitivity', 'opacity', 'size'] as const).map(key => <label key={key} className="block">{key === 'sensitivity' ? 'Sensitivitas' : key === 'opacity' ? 'Transparansi' : 'Ukuran'} {Math.round(custom[key] * 100)}%<input className="block w-32" type="range" min={key === 'opacity' ? .45 : key === 'size' ? .8 : .6} max={key === 'opacity' ? 1 : key === 'size' ? 1.15 : 1.5} step={.05} value={custom[key]} onChange={e => updateCustom(key, Number(e.target.value))}/></label>)}
+        <button type="button" onClick={() => setCustomOpen(false)} className="rounded bg-emerald-700 px-3 py-1">Selesai</button>
+      </div>}
       {/* Left Side: Virtual Stick Zone (Mouse/Trackpad on Laptop & PC + Touch on Mobile) */}
       <div
         ref={zoneRef}
         className="pointer-events-auto relative shrink-0 w-[clamp(112px,26vw,216px)] h-[clamp(112px,26vw,216px)] max-h-[48dvh] touch-none select-none cursor-grab active:cursor-grabbing"
+        style={{ opacity: custom.opacity, transform: 'scale(' + custom.size + ')', transformOrigin: 'bottom left' }}
         onPointerDown={handleJoyDown}
         onPointerMove={handleJoyMove}
         onPointerUp={handleJoyEnd}
@@ -296,7 +315,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       </div>
 
       {/* Right Side: Recall, Recovery, 3 Skills, Ultimate, Basic Attack */}
-      <div className="pointer-events-none relative flex items-end gap-1 sm:gap-2 touch-none select-none shrink-0">
+      <div className="pointer-events-none relative flex items-end gap-1 sm:gap-2 touch-none select-none shrink-0" style={{ opacity: custom.opacity, transform: "scale(" + custom.size + ")", transformOrigin: "bottom right" }}>
         {/* Utility Buttons (Recall & Recovery) */}
         <div className="flex flex-col gap-2 mb-1">
           <button

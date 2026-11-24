@@ -42,6 +42,7 @@ class OnlineRoomClient {
   private listeners = new Set<OnlineClientEvents>();
   private reconnectTimer: number | null = null;
   private intentionalClose = false;
+  private reconnectAttempts = 0;
 
   public subscribe(listener: OnlineClientEvents): () => void {
     this.listeners.add(listener);
@@ -75,6 +76,8 @@ class OnlineRoomClient {
       return;
     }
 
+    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this.intentionalClose = false;
     this.setStatus('connecting');
 
@@ -84,6 +87,7 @@ class OnlineRoomClient {
 
     ws.onopen = () => {
       if (this.ws !== ws) return;
+      this.reconnectAttempts = 0;
       this.setStatus('connected');
     };
 
@@ -105,9 +109,11 @@ class OnlineRoomClient {
       this.setStatus('disconnected');
       if (!this.intentionalClose) {
         if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
+        const delay = Math.min(15000, 1000 * 2 ** Math.min(4, this.reconnectAttempts++));
         this.reconnectTimer = window.setTimeout(() => {
-          this.connect();
-        }, 2000);
+          this.reconnectTimer = null;
+          if (!this.intentionalClose) this.connect();
+        }, delay);
       }
     };
 
@@ -118,6 +124,7 @@ class OnlineRoomClient {
 
   public disconnect(): void {
     this.intentionalClose = true;
+    this.reconnectAttempts = 0;
     if (this.reconnectTimer !== null) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -145,7 +152,12 @@ class OnlineRoomClient {
   private handleMessage(msg: Record<string, unknown>): void {
     switch (msg.type) {
       case 'welcome': {
+        const previousId = this.playerId;
         this.playerId = String(msg.playerId || '');
+        if (previousId && previousId !== this.playerId && this.room) {
+          this.room = null;
+          for (const l of this.listeners) { l.onRoomState?.(null); l.onError?.('Koneksi pulih. Silakan masuk kembali ke ruang permainan.'); }
+        }
         if (Array.isArray(msg.rooms)) {
           this.rooms = msg.rooms as OnlineRoomSummary[];
           for (const l of this.listeners) l.onRoomList?.(this.rooms);

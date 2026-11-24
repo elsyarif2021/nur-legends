@@ -1687,7 +1687,7 @@ export class BattleScene extends Phaser.Scene {
     if (attacker.isHuman && this.lockedTarget) {
       if (this.lockedTarget.kind === 'hero') {
         const h = this.heroes.find((item) => item.id === this.lockedTarget!.id);
-        if (h && !h.isDead) {
+        if (h && !h.isDead && h.team !== attacker.team) {
           const d = Phaser.Math.Distance.Between(attacker.x, attacker.y, h.x, h.y);
           if (d <= range + h.radius) return { kind: 'hero', obj: h, dist: d };
           if (d > range + 340) this.lockedTarget = null;
@@ -1705,7 +1705,7 @@ export class BattleScene extends Phaser.Scene {
         }
       } else if (this.lockedTarget.kind === 'structure') {
         const s = this.structures.find((item) => item.id === this.lockedTarget!.id);
-        if (s && !s.destroyed) {
+        if (s && !s.destroyed && s.team !== attacker.team) {
           const d = Phaser.Math.Distance.Between(attacker.x, attacker.y, s.x, s.y);
           if (d <= range + s.radius) return { kind: 'structure', obj: s, dist: d };
           if (d > range + 340) this.lockedTarget = null;
@@ -1719,7 +1719,7 @@ export class BattleScene extends Phaser.Scene {
     for (const h of this.heroes) {
       if (h.isDead || h.team === attacker.team) continue;
       const d = Phaser.Math.Distance.Between(attacker.x, attacker.y, h.x, h.y);
-      if (d <= range + h.radius && (!bestHero || d < bestHero.dist)) {
+      if (d <= range + h.radius && (!bestHero || (attacker.isHuman ? d + 80 * h.hp / Math.max(1, h.maxHp) < bestHero.dist + 80 * bestHero.obj.hp / Math.max(1, bestHero.obj.maxHp) : d < bestHero.dist))) {
         bestHero = { kind: 'hero', obj: h, dist: d };
       }
     }

@@ -14,6 +14,8 @@ import {
 import { GameHUD } from './GameHUD';
 
 interface BattleArenaProps {
+  narratorLanguage?: 'id-ID' | 'en-US';
+  narratorEnabled?: boolean;
   heroId: HeroId;
   mode: GameMode;
   onlineRoom?: OnlineRoomState | null;
@@ -27,6 +29,8 @@ interface BattleArenaProps {
 }
 
 export const BattleArena: React.FC<BattleArenaProps> = ({
+  narratorLanguage = 'id-ID',
+  narratorEnabled = true,
   heroId,
   mode,
   onlineRoom = null,
@@ -41,6 +45,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [matchKey, setMatchKey] = useState(0);
+  const previousHud = useRef<HudSnapshot | null>(null);
+  const lastSpeech = useRef(0);
 
   const inputBridge = useRef<BattleInputBridge>({
     moveX: 0,
@@ -95,9 +101,34 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   }));
 
   useEffect(() => {
+    const prev = previousHud.current;
+    previousHud.current = hud;
+    if (!narratorEnabled || settings.muted || !('speechSynthesis' in window)) return;
+    let words: [string, string] | null = null;
+    if (hud.matchResult && !prev?.matchResult) words = hud.matchResult.winner === (hud.matchResult.playerTeam ?? 'blue') ? ['Kemenangan!', 'Victory!'] : ['Kekalahan.', 'Defeat.'];
+    else if (!prev) words = ['Selamat datang di arena!', 'Welcome to the battlefield!'];
+    else if (hud.blueKills + hud.redKills > 0 && prev.blueKills + prev.redKills === 0) words = ['Eliminasi pertama!', 'First elimination!'];
+    else if (hud.kills > prev.kills) words = ['Lawan berhasil dieliminasi!', 'Enemy eliminated!'];
+    else if (hud.blueTurretsLeft + hud.redTurretsLeft < prev.blueTurretsLeft + prev.redTurretsLeft) words = ['Sebuah menara dihancurkan!', 'A tower has been destroyed!'];
+    else if (hud.isDead && !prev.isDead) words = ['Bersiap untuk kembali ke arena.', 'Prepare to return to the battlefield.'];
+    if (!words || (!hud.matchResult && Date.now() - lastSpeech.current < 2200)) return;
+    lastSpeech.current = Date.now();
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(words[narratorLanguage === 'en-US' ? 1 : 0]);
+    utterance.lang = narratorLanguage;
+    utterance.volume = Math.min(1, Math.max(0, settings.volume));
+    window.speechSynthesis.speak(utterance);
+  }, [hud, narratorEnabled, narratorLanguage, settings.muted, settings.volume]);
+
+  useEffect(() => { if (settings.muted || !narratorEnabled) window.speechSynthesis?.cancel(); }, [settings.muted, narratorEnabled]);
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
+    previousHud.current = null;
+    lastSpeech.current = 0;
     inputBridge.current = {
       moveX: 0,
       moveY: 0,
@@ -129,7 +160,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       fps: {
-        target: 60,
+        target: settings.quality === 'low' ? 30 : 60,
+        limit: settings.quality === 'low' ? 30 : 60,
         forceSetTimeOut: false,
       },
       callbacks: {

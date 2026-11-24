@@ -19,9 +19,37 @@ async function parseJsonSafe<T>(res: Response): Promise<T | null> {
 }
 
 class AuthClient {
-  // Held strictly in JS memory (never written to localStorage/sessionStorage)
+  // Session-scoped persistence: never store passwords or long-lived credentials in localStorage.
   private token: string | null = null;
   private currentUser: AuthUser | null = null;
+
+  private remember(token: string | null): void {
+    try { if (token) sessionStorage.setItem('nur_session', token); else sessionStorage.removeItem('nur_session'); } catch { /* storage unavailable */ }
+  }
+
+  public async restore(): Promise<AuthSessionResult | null> {
+    let token: string | null = null;
+    try { token = sessionStorage.getItem('nur_session'); } catch { return null; }
+    if (!token) return null;
+    try {
+      const convex = getConvexHttpClient();
+      let data: { user?: AuthUser; progress?: PlayerProgress | null } | null;
+      if (convex) {
+        const result = await convex.action(convexApi.authActions.getMe, { token });
+        if (!result.ok) { this.remember(null); return null; }
+        data = result;
+      } else {
+        const res = await fetch(getApiUrl('/api/auth/me'), { headers: { Authorization: 'Bearer ' + token } });
+        if (res.status === 401 || res.status === 403) { this.remember(null); return null; }
+        if (!res.ok) return null;
+        data = await parseJsonSafe(res);
+      }
+      if (!data?.user) return null;
+      this.token = token;
+      this.currentUser = data.user;
+      return { user: data.user, progress: data.progress ?? null };
+    } catch { return null; }
+  }
 
   public getUser(): AuthUser | null {
     return this.currentUser;
@@ -49,6 +77,7 @@ class AuthClient {
         throw new Error(result.error || 'Gagal membuat akun di Convex.');
       }
       this.token = result.token;
+      this.remember(result.token);
       this.currentUser = result.user;
       return { user: result.user, progress: result.progress ?? null };
     }
@@ -73,6 +102,7 @@ class AuthClient {
       throw new Error(data.error || 'Gagal membuat akun.');
     }
     this.token = data.token;
+    this.remember(data.token);
     this.currentUser = data.user;
     return { user: data.user, progress: data.progress ?? null };
   }
@@ -93,6 +123,7 @@ class AuthClient {
         throw new Error(result.error || 'Email atau password tidak sesuai.');
       }
       this.token = result.token;
+      this.remember(result.token);
       this.currentUser = result.user;
       return { user: result.user, progress: result.progress ?? null };
     }
@@ -117,6 +148,7 @@ class AuthClient {
       throw new Error(data.error || 'Email atau password salah.');
     }
     this.token = data.token;
+    this.remember(data.token);
     this.currentUser = data.user;
     return { user: data.user, progress: data.progress ?? null };
   }
@@ -160,6 +192,7 @@ class AuthClient {
   public async logout(): Promise<void> {
     const tok = this.token;
     this.token = null;
+    this.remember(null);
     this.currentUser = null;
     if (!tok) return;
 

@@ -78,6 +78,7 @@ function stopGuide(): void {
 
 export default function App() {
   const [progress, setProgress] = useState<PlayerProgress>(() => loadPlayerProgress());
+  const [restoringSession, setRestoringSession] = useState(true);
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideEnabled, setGuideEnabled] = useState(true);
   const [narratorLanguage, setNarratorLanguage] = useState<NarratorLanguage>(readNarratorLanguage);
@@ -314,6 +315,25 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    void authClient.restore().then(session => {
+      if (!active) return;
+      if (session) {
+        setAuthUser(session.user);
+        setAuthModalOpen(false);
+        if (session.progress) {
+          const defaults = createDefaultProgress();
+          const next = { ...defaults, ...session.progress, playerName: session.user.name, settings: { ...defaults.settings, ...session.progress.settings } };
+          savePlayerProgress(next);
+          setProgress(next);
+        }
+      }
+      setRestoringSession(false);
+    });
+    return () => { active = false; };
+  }, []);
+
   const handleLogout = () => {
     stopGuide();
     setGuideOpen(false);
@@ -382,7 +402,8 @@ export default function App() {
               </div>
             </div>
           )}
-          {authModalOpen && (
+          {restoringSession && <div className="fixed inset-0 z-[80] bg-slate-950/90 flex items-center justify-center text-amber-200">Memeriksa sesi...</div>}
+          {authModalOpen && !restoringSession && (
             <AuthModal
               currentProgress={progress}
               allowDismiss
@@ -393,6 +414,8 @@ export default function App() {
         </>
       ) : (
         <BattleArena
+          narratorLanguage={narratorLanguage}
+          narratorEnabled={guideEnabled}
           heroId={progress.selectedHeroId}
           mode={activeMode}
           onlineRoom={onlineRoom}
