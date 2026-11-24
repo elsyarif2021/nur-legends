@@ -24,7 +24,28 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   const [joyKnob, setJoyKnob] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const [keyKnob, setKeyKnob] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const pressedKeys = useRef<Set<string>>(new Set());
-  const maxRadius = 48;
+  const [radius, setRadius] = useState(48);
+  const maxRadius = radius;
+  const frame = useRef<number | null>(null);
+  const attackPointer = useRef<number | null>(null);
+  const attackTimer = useRef<number | null>(null);
+  const [attacking, setAttacking] = useState(false);
+  const stopAttack = () => {
+    attackPointer.current = null;
+    if (attackTimer.current !== null) window.clearInterval(attackTimer.current);
+    attackTimer.current = null;
+    setAttacking(false);
+  };
+
+  useEffect(() => {
+    if (!visible || !zoneRef.current) return;
+    const el = zoneRef.current;
+    const measure = () => setRadius(Math.max(28, Math.min(54, el.clientWidth * 0.25)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visible]);
 
   // Mirror WASD / Arrow keyboard movement onto the Virtual Stick knob for Laptop/PC visual feedback
   useEffect(() => {
@@ -63,6 +84,9 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     };
 
     const onBlur = () => {
+      stopAttack();
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
       pressedKeys.current.clear();
       setKeyKnob({ dx: 0, dy: 0 });
       joyPointerId.current = null;
@@ -75,13 +99,24 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    const onVisibility = () => { if (document.hidden) onBlur(); };
     window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
+    if (!visible) onBlur();
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (attackTimer.current !== null) window.clearInterval(attackTimer.current);
+      attackTimer.current = null;
+      attackPointer.current = null;
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+      inputBridge.current.moveX = 0;
+      inputBridge.current.moveY = 0;
     };
-  }, [inputBridge]);
+  }, [inputBridge, visible, maxRadius]);
 
   if (!visible) return null;
 
@@ -98,9 +133,15 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       dx = (dx / dist) * maxRadius;
       dy = (dy / dist) * maxRadius;
     }
-    setJoyKnob({ dx, dy });
-    inputBridge.current.moveX = dx / maxRadius;
-    inputBridge.current.moveY = dy / maxRadius;
+    const magnitude = Math.min(1, dist / maxRadius);
+    const strength = Math.max(0, (magnitude - 0.1) / 0.9);
+    inputBridge.current.moveX = dist > 0 ? (cx - origin.x) / dist * strength : 0;
+    inputBridge.current.moveY = dist > 0 ? (cy - origin.y) / dist * strength : 0;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      setJoyKnob({ dx, dy });
+    });
   };
 
   const handleJoyDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -120,15 +161,15 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     const localY = e.clientY - rect.top;
 
     // Resting stick center inside the left zone (matches base ring position)
-    const restingCenterX = 84;
-    const restingCenterY = rect.height - 90;
+    const restingCenterX = rect.width / 2;
+    const restingCenterY = rect.height / 2;
     const distFromRest = Math.hypot(localX - restingCenterX, localY - restingCenterY);
 
     // If clicking within/near the resting stick ring (ideal for Laptop/PC mouse & trackpad),
     // keep origin anchored at the resting center so clicking any direction moves immediately.
     // Otherwise use floating touch origin where the finger/cursor pressed.
     const origin =
-      distFromRest <= 64
+      e.pointerType === 'mouse' && distFromRest <= maxRadius * 1.3
         ? { x: restingCenterX, y: restingCenterY }
         : { x: localX, y: localY };
 
@@ -145,6 +186,8 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
   const handleJoyEnd = (e: React.PointerEvent<HTMLDivElement>) => {
     if (joyPointerId.current !== e.pointerId) return;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
     joyPointerId.current = null;
     joyOriginRef.current = null;
     setJoyOrigin(null);
@@ -160,7 +203,21 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     e.stopPropagation();
-    inputBridge.current.triggerQueue.push(act);
+    if (!inputBridge.current.triggerQueue.includes(act)) inputBridge.current.triggerQueue.push(act);
+  };
+
+  const startAttack = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (attackPointer.current !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    triggerAction(e, 'basic');
+    attackPointer.current = e.pointerId;
+    setAttacking(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* optional */ }
+    attackTimer.current = window.setInterval(() => {
+      if (!inputBridge.current.triggerQueue.includes('basic')) inputBridge.current.triggerQueue.push('basic');
+    }, 100);
+  };
+  const endAttack = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (attackPointer.current === e.pointerId) stopAttack();
   };
 
   const activeKnob = joyOrigin ? joyKnob : keyKnob;
@@ -169,11 +226,11 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   const skillActions: Array<'s1' | 's2' | 's3' | 'ult'> = ['s1', 's2', 's3', 'ult'];
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex items-end justify-between p-3 sm:p-5 touch-none">
+    <div className="pointer-events-none fixed inset-0 z-20 flex items-end justify-between touch-none" style={{ paddingLeft: "max(12px, env(safe-area-inset-left))", paddingRight: "max(12px, env(safe-area-inset-right))", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
       {/* Left Side: Virtual Stick Zone (Mouse/Trackpad on Laptop & PC + Touch on Mobile) */}
       <div
         ref={zoneRef}
-        className="pointer-events-auto relative w-48 h-48 sm:w-56 sm:h-56 touch-none select-none cursor-grab active:cursor-grabbing"
+        className="pointer-events-auto relative shrink-0 w-[clamp(112px,26vw,216px)] h-[clamp(112px,26vw,216px)] max-h-[48dvh] touch-none select-none cursor-grab active:cursor-grabbing"
         onPointerDown={handleJoyDown}
         onPointerMove={handleJoyMove}
         onPointerUp={handleJoyEnd}
@@ -184,14 +241,15 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       >
         {/* Virtual Analog Stick Ring */}
         <div
-          className={`absolute w-28 h-28 rounded-full border-2 flex items-center justify-center transition-colors ${
+          className={`absolute w-[clamp(88px,19vw,144px)] h-[clamp(88px,19vw,144px)] max-h-[42dvh] rounded-full border-2 flex items-center justify-center transition-colors ${
             isStickActive
               ? 'border-[#fbbf24] bg-[#0b1f33]/75 shadow-[0_0_24px_rgba(251,191,36,0.28)]'
               : 'border-[#d4af37]/50 bg-[#07111e]/55 hover:border-[#d4af37]/80'
           }`}
           style={{
-            left: joyOrigin ? joyOrigin.x - 56 : 28,
-            top: joyOrigin ? joyOrigin.y - 56 : 'calc(100% - 146px)',
+            left: joyOrigin ? joyOrigin.x : '50%',
+            top: joyOrigin ? joyOrigin.y : '50%',
+            transform: 'translate(-50%, -50%)',
           }}
         >
           {/* Inner directional guide ring */}
@@ -213,7 +271,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
           {/* Movable Stick Knob */}
           <div
-            className={`absolute w-12 h-12 rounded-full bg-gradient-to-br from-[#fbbf24] to-[#b45309] border-2 border-[#fdfbf7]/90 shadow-xl flex items-center justify-center pointer-events-none ${
+            className={`absolute w-[clamp(40px,8vw,60px)] h-[clamp(40px,8vw,60px)] rounded-full bg-gradient-to-br from-[#fbbf24] to-[#b45309] border-2 border-[#fdfbf7]/90 shadow-xl flex items-center justify-center pointer-events-none ${
               isStickActive ? 'scale-105' : ''
             }`}
             style={{
@@ -233,13 +291,13 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       </div>
 
       {/* Right Side: Recall, Recovery, 3 Skills, Ultimate, Basic Attack */}
-      <div className="pointer-events-auto relative flex items-end gap-2 sm:gap-3 touch-none select-none">
+      <div className="pointer-events-none relative flex items-end gap-1 sm:gap-2 touch-none select-none shrink-0">
         {/* Utility Buttons (Recall & Recovery) */}
         <div className="flex flex-col gap-2 mb-1">
           <button
             type="button"
             onPointerDown={(e) => triggerAction(e, 'recall')}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0c1a2e]/90 border border-[#38bdf8]/60 text-[#93c5fd] flex flex-col items-center justify-center shadow-lg hover:brightness-115 active:scale-95 transition-transform cursor-pointer"
+            className="pointer-events-auto w-[clamp(36px,6vw,48px)] h-[clamp(36px,6vw,48px)] rounded-full bg-[#0c1a2e]/90 border border-[#38bdf8]/60 text-[#93c5fd] flex flex-col items-center justify-center shadow-lg hover:brightness-115 active:scale-95 transition-transform cursor-pointer"
             title="Pulang ke Markas (B)"
           >
             <SkillIcon type="recall" className="w-5 h-5" />
@@ -250,7 +308,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
             type="button"
             onPointerDown={(e) => triggerAction(e, 'recovery')}
             disabled={hud.recoveryCooldown > 0}
-            className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0c1a2e]/90 border border-[#10b981]/60 text-[#6ee7b7] flex flex-col items-center justify-center shadow-lg hover:brightness-115 active:scale-95 transition-transform overflow-hidden disabled:opacity-60 cursor-pointer"
+            className="pointer-events-auto relative w-[clamp(36px,6vw,48px)] h-[clamp(36px,6vw,48px)] rounded-full bg-[#0c1a2e]/90 border border-[#10b981]/60 text-[#6ee7b7] flex flex-col items-center justify-center shadow-lg hover:brightness-115 active:scale-95 transition-transform overflow-hidden disabled:opacity-60 cursor-pointer"
             title="Pemulihan Darurat (G)"
           >
             <SkillIcon type="recovery" className="w-5 h-5" />
@@ -264,7 +322,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
         </div>
 
         {/* Arc of 3 Skills + Ultimate + Basic Attack */}
-        <div className="relative w-52 h-44 sm:w-60 sm:h-48">
+        <div className="relative w-[clamp(142px,32vw,260px)] h-[clamp(136px,27vw,210px)] max-h-[48dvh]">
           {/* Skill 1 (Bottom-Left of Arc) */}
           {heroDef.skills.map((sk, idx) => {
             const cd = hud.skillCooldowns[idx];
@@ -272,20 +330,21 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
             const isUlt = idx === 3;
             const posClass =
               idx === 0
-                ? 'left-0 bottom-2'
+                ? 'left-0 bottom-0'
                 : idx === 1
-                ? 'left-8 bottom-16 sm:left-10 sm:bottom-20'
+                ? 'left-0 bottom-[48%]'
                 : idx === 2
-                ? 'left-24 bottom-28 sm:left-28 sm:bottom-32'
-                : 'right-2 bottom-28 sm:right-3 sm:bottom-32';
+                ? 'left-[36%] top-0'
+                : 'right-0 top-0';
 
             return (
               <button
                 key={sk.id}
                 type="button"
                 onPointerDown={(e) => triggerAction(e, skillActions[idx])}
-                className={`absolute ${posClass} ${
-                  isUlt ? 'w-14 h-14 sm:w-16 sm:h-16 border-[#fbbf24]' : 'w-12 h-12 sm:w-14 sm:h-14 border-[#14b8a6]/80'
+                disabled={cd > 0 || noMana}
+                className={`pointer-events-auto absolute ${posClass} ${
+                  isUlt ? 'w-[clamp(42px,9vw,68px)] h-[clamp(42px,9vw,68px)] border-[#fbbf24]' : 'w-[clamp(40px,8vw,62px)] h-[clamp(40px,8vw,62px)] border-[#14b8a6]/80'
                 } rounded-full bg-[#0b192c]/95 border-2 flex flex-col items-center justify-center shadow-xl hover:brightness-115 active:scale-95 transition-transform overflow-hidden cursor-pointer ${
                   noMana ? 'opacity-60' : 'text-[#fdfbf7]'
                 }`}
@@ -305,12 +364,16 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
           {/* Basic Attack Button (Bottom-Right Anchor) */}
           <button
             type="button"
-            onPointerDown={(e) => triggerAction(e, 'basic')}
-            className="absolute right-0 bottom-0 w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-[#d4af37] to-[#92400e] border-3 border-[#fef3c7] text-[#07111e] flex flex-col items-center justify-center shadow-2xl hover:brightness-110 active:scale-90 transition-transform cursor-pointer"
-            title="Serangan Dasar (Spasi)"
+            onPointerDown={startAttack}
+            onPointerUp={endAttack}
+            onPointerCancel={endAttack}
+            onLostPointerCapture={endAttack}
+            aria-pressed={attacking}
+            className="pointer-events-auto absolute right-0 bottom-0 w-[clamp(58px,12vw,96px)] h-[clamp(58px,12vw,96px)] rounded-full bg-gradient-to-br from-[#d4af37] to-[#92400e] border-3 border-[#fef3c7] text-[#07111e] flex flex-col items-center justify-center shadow-2xl hover:brightness-110 active:scale-90 transition-transform cursor-pointer"
+            title="Serangan Dasar — tahan untuk menyerang berulang (Spasi)"
           >
             <SkillIcon type="sword" className="w-8 h-8" />
-            <span className="text-[10px] font-extrabold uppercase tracking-wider mt-0.5">Serang</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider mt-0.5">{attacking ? "Tahan" : "Serang"}</span>
           </button>
         </div>
       </div>
