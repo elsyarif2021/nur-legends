@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { canAcceptSnapshot } from './server/matchValidation.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -33,6 +34,7 @@ interface RoomRecord {
   maxPlayers: number;
   players: RoomPlayer[];
   createdAt: number;
+  lastSnapshot?: Record<string, unknown>;
 }
 
 interface ClientSession {
@@ -42,6 +44,7 @@ interface ClientSession {
   isAlive: boolean;
   resumeKey: string;
   expiresAt?: number;
+  lastCommandSeq?: number;
 }
 
 const VALID_HERO_IDS = new Set<HeroId>([
@@ -463,7 +466,7 @@ async function startServer(): Promise<void> {
   });
 
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, rooms: rooms.size, playersOnline: sessions.size });
+    res.json({ ok: true, rooms: rooms.size, playersOnline: [...sessions.values()].filter(s => s.ws.readyState === WebSocket.OPEN).length, protocolVersion: 3, simulation: 'host-relay' });
   });
 
   app.get('/api/rooms', (_req, res) => {
@@ -699,7 +702,10 @@ async function startServer(): Promise<void> {
 
     if (prior?.roomCode) {
       const room = rooms.get(prior.roomCode);
-      if (room) sendJson(ws, { type: 'room:state', room: serializeRoom(room) });
+      if (room) {
+        sendJson(ws, { type: 'room:state', room: serializeRoom(room) });
+        if (room.status === 'playing' && room.lastSnapshot && room.hostId !== playerId) sendJson(ws, { type: 'game:state', snapshot: room.lastSnapshot });
+      }
     }
 
     ws.on('pong', () => {
@@ -770,12 +776,9 @@ async function startServer(): Promise<void> {
           const micOn = Boolean(msg.micOn);
 
           let targetRoom: RoomRecord | null = null;
-          for (const r of rooms.values()) {
-            if (r.isPublic && r.status === 'waiting' && r.players.length < r.maxPlayers) {
-              targetRoom = r;
-              break;
-            }
-          }
+          const candidates = [...rooms.values()].filter(r => r.isPublic && r.status === 'waiting' && r.players.length < r.maxPlayers && sessions.get(r.hostId)?.ws.readyState === WebSocket.OPEN);
+          candidates.sort((a,b) => b.players.length - a.players.length || a.createdAt - b.createdAt);
+          targetRoom = candidates[0] ?? null;
 
           if (!targetRoom) {
             const code = generateRoomCode();
@@ -939,7 +942,10 @@ async function startServer(): Promise<void> {
           if (!session.roomCode) break;
           const room = rooms.get(session.roomCode);
           if (!room || room.hostId !== playerId) break;
+          if (room.status === 'playing') break;
           room.status = 'playing';
+          room.lastSnapshot = undefined;
+          for (const p of room.players) { const member = sessions.get(p.id); if (member) member.lastCommandSeq = undefined; }
           broadcastToRoom(room, { type: 'room:started', room: serializeRoom(room) });
           broadcastPublicRoomList();
           break;
@@ -965,6 +971,8 @@ async function startServer(): Promise<void> {
             const value = command.type === 'BUY_ITEM' ? command.itemId : command.chatId;
             if (typeof value !== 'string' || value.length > 80) break;
           } else break;
+          if (Number(command.seq) <= (session.lastCommandSeq ?? -1)) break;
+          session.lastCommandSeq = Number(command.seq);
           const hostSession = sessions.get(room.hostId);
           if (!hostSession || hostSession.ws.readyState !== WebSocket.OPEN) break;
 
@@ -980,7 +988,9 @@ async function startServer(): Promise<void> {
         case 'game:state': {
           if (!session.roomCode) break;
           const room = rooms.get(session.roomCode);
-          if (!room || room.hostId !== playerId) break;
+          if (!room || room.hostId !== playerId || room.status !== 'playing') break;
+          if (!canAcceptSnapshot(room.lastSnapshot, msg.snapshot)) break;
+          room.lastSnapshot = msg.snapshot as Record<string, unknown>;
           broadcastToRoom(
             room,
             { type: 'game:state', snapshot: msg.snapshot },
@@ -1005,7 +1015,9 @@ async function startServer(): Promise<void> {
           if (!session.roomCode) break;
           const room = rooms.get(session.roomCode);
           if (!room || room.hostId !== playerId) break;
+          if (room.status !== 'playing' || !room.lastSnapshot?.matchResult) break;
           room.status = 'waiting';
+          room.lastSnapshot = undefined;
           for (const p of room.players) {
             p.ready = p.isHost;
           }
@@ -1043,6 +1055,11 @@ async function startServer(): Promise<void> {
     ws.on('close', () => {
       if (session.ws !== ws) return;
       if (!session.roomCode) { sessions.delete(playerId); return; }
+      const currentRoom = rooms.get(session.roomCode);
+      if (currentRoom?.status === 'playing' && currentRoom.hostId !== playerId) {
+        const host = sessions.get(currentRoom.hostId);
+        if (host) sendJson(host.ws, { type: 'game:input', fromPlayerId: playerId, command: { type: 'MOVE', playerId, seq: session.lastCommandSeq ?? 0, vx: 0, vy: 0 } });
+      }
       session.expiresAt = Date.now() + 60000;
       setTimeout(() => {
         if (session.ws !== ws || !session.expiresAt || session.expiresAt > Date.now()) return;

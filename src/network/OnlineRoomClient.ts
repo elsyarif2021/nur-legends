@@ -94,7 +94,7 @@ class OnlineRoomClient {
     };
 
     ws.onmessage = (ev) => {
-      if (typeof ev.data !== 'string') return;
+      if (this.ws !== ws || typeof ev.data !== 'string') return;
       let msg: Record<string, unknown>;
       try {
         msg = JSON.parse(ev.data) as Record<string, unknown>;

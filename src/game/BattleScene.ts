@@ -3541,6 +3541,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private applyWorldSnapshot(snap: OnlineWorldSnapshot): void {
+    this.syncSeq = Math.max(this.syncSeq, snap.seq);
     this.matchTimeSec = snap.matchTimeSec;
     this.blueKills = snap.blueKills;
     this.redKills = snap.redKills;
