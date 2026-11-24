@@ -1,0 +1,6 @@
+{
+  "name": "Nur Legends: Guardians of Light",
+  "description": "Gim strategi aksi MOBA 5v5 bertema peradaban fantasi bernuansa Islami yang ramah keluarga dalam Bahasa Indonesia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
