@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { HEROES, HERO_LIST } from '../data/heroes';
 import { SHOP_ITEMS } from '../data/items';
 import { QUICK_CHAT_MAP } from '../data/quickChat';
+import { LocalBotTransport } from '../network/MatchTransport';
 import { soundEngine } from '../services/sound';
 import {
   BattleInputBridge,
@@ -34,7 +35,24 @@ import { generateAllGameTextures } from './TextureGenerator';
 const GUARDIAN_RESPAWN_TIME = 55;
 
 type Team = 'blue' | 'red';
-type BotState = 'LANE' | 'COMBAT' | 'PUSH_TOWER' | 'RETREAT' | 'HEAL_BASE';
+type BotState = 'LANE' | 'COMBAT' | 'PUSH_TOWER' | 'RETREAT' | 'HEAL_BASE' | 'ASSIST';
+
+interface FloatingTextItem {
+  active: boolean;
+  life: number;
+  maxLife: number;
+  vy: number;
+  text: Phaser.GameObjects.Text;
+}
+
+interface LightParticleItem {
+  active: boolean;
+  life: number;
+  maxLife: number;
+  vx: number;
+  vy: number;
+  sprite: Phaser.GameObjects.Sprite;
+}
 
 interface HeroEntity {
   id: string;
@@ -101,6 +119,7 @@ interface HeroEntity {
   sprite: Phaser.GameObjects.Sprite;
   teamRing: Phaser.GameObjects.Arc;
   shieldRing: Phaser.GameObjects.Arc;
+  guardianRing: Phaser.GameObjects.Arc;
   hpBarBg: Phaser.GameObjects.Rectangle;
   hpBarFill: Phaser.GameObjects.Rectangle;
   manaBarFill: Phaser.GameObjects.Rectangle;
@@ -145,6 +164,8 @@ interface StructureEntity {
   ad: number;
   attackRange: number;
   attackCooldown: number;
+  aggroHeroId: string | null;
+  aggroTimer: number;
   destroyed: boolean;
   radius: number;
   sprite: Phaser.GameObjects.Sprite;
@@ -228,6 +249,11 @@ export class BattleScene extends Phaser.Scene {
   private guardians: GuardianEntity[] = [];
   private projectiles: Projectile[] = [];
   private aoeZones: AoEZone[] = [];
+  private floatingTextPool: FloatingTextItem[] = [];
+  private lightParticlePool: LightParticleItem[] = [];
+  private transport = new LocalBotTransport();
+  private lockedTarget: { kind: 'hero' | 'structure' | 'guardian'; id: string } | null = null;
+  private targetReticle!: Phaser.GameObjects.Arc;
 
   private matchTimeSec = 0;
   private waveTimer = 2; // first wave spawns quickly at 2s
@@ -273,6 +299,9 @@ export class BattleScene extends Phaser.Scene {
     this.guardians = [];
     this.projectiles = [];
     this.aoeZones = [];
+    this.floatingTextPool = [];
+    this.lightParticlePool = [];
+    this.lockedTarget = null;
     this.matchTimeSec = 0;
     this.waveTimer = 2;
     this.blueKills = 0;
@@ -282,6 +311,12 @@ export class BattleScene extends Phaser.Scene {
     this.matchEnded = false;
     this.notices = [];
     this.chatFeed = [];
+    void this.transport.connect({
+      mode: data.mode,
+      localPlayerId: 'blue_0',
+      heroId: data.playerHeroId,
+      tickRateHz: 60,
+    });
   }
 
   public create(): void {
@@ -295,8 +330,15 @@ export class BattleScene extends Phaser.Scene {
     this.createGuardians();
     this.createProjectilePool(80);
     this.createMinionPool(60);
+    this.createFxPools(30, 64);
+    this.targetReticle = this.add
+      .circle(0, 0, 36, 0xfbbf24, 0.08)
+      .setStrokeStyle(2.5, 0xfbbf24, 0.95)
+      .setVisible(false)
+      .setDepth(11);
     this.spawnTeams();
     this.setupKeyboard();
+    this.setupPointerTargetSelection();
 
     this.cameras.main.startFollow(this.playerHero.sprite, true, 0.14, 0.14);
     this.cameras.main.setZoom(this.scale.width < 760 ? 0.78 : 0.95);
@@ -307,6 +349,7 @@ export class BattleScene extends Phaser.Scene {
     window.addEventListener('blur', this.blurHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('blur', this.blurHandler);
+      this.transport.disconnect();
     });
   }
 
@@ -326,6 +369,62 @@ export class BattleScene extends Phaser.Scene {
       b: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B),
       g: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G),
     };
+  }
+
+  private setupPointerTargetSelection(): void {
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.matchEnded || this.initData.inputBridge.paused) return;
+      const wx = pointer.worldX;
+      const wy = pointer.worldY;
+
+      for (const h of this.heroes) {
+        if (!h.isDead && h.team !== this.playerHero.team && Phaser.Math.Distance.Between(wx, wy, h.x, h.y) <= 44) {
+          this.lockedTarget = { kind: 'hero', id: h.id };
+          soundEngine.playClick();
+          return;
+        }
+      }
+      for (const g of this.guardians) {
+        if (g.alive && Phaser.Math.Distance.Between(wx, wy, g.x, g.y) <= 50) {
+          this.lockedTarget = { kind: 'guardian', id: g.id };
+          soundEngine.playClick();
+          return;
+        }
+      }
+      for (const s of this.structures) {
+        if (!s.destroyed && s.team !== this.playerHero.team && Phaser.Math.Distance.Between(wx, wy, s.x, s.y) <= s.radius + 16) {
+          this.lockedTarget = { kind: 'structure', id: s.id };
+          soundEngine.playClick();
+          return;
+        }
+      }
+    });
+  }
+
+  private createFxPools(textCount: number, particleCount: number): void {
+    for (let i = 0; i < textCount; i++) {
+      const text = this.add
+        .text(-999, -999, '', {
+          fontSize: '13px',
+          fontFamily: 'JetBrains Mono',
+          fontStyle: 'bold',
+          color: '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setVisible(false)
+        .setDepth(30);
+      this.floatingTextPool.push({ active: false, life: 0, maxLife: 0.75, vy: -36, text });
+    }
+
+    for (let i = 0; i < particleCount; i++) {
+      const sprite = this.add
+        .sprite(-999, -999, 'particle_light')
+        .setVisible(false)
+        .setDepth(16);
+      this.lightParticlePool.push({ active: false, life: 0, maxLife: 0.5, vx: 0, vy: 0, sprite });
+    }
   }
 
   private drawBattlefieldMap(): void {
@@ -506,6 +605,8 @@ export class BattleScene extends Phaser.Scene {
         ad: def.attackDamage,
         attackRange: def.attackRange,
         attackCooldown: 0,
+        aggroHeroId: null,
+        aggroTimer: 0,
         destroyed: false,
         radius: def.kind === 'core' ? 58 : 40,
         sprite,
@@ -684,6 +785,7 @@ export class BattleScene extends Phaser.Scene {
     const ringColor = isHuman ? 0xfbbf24 : team === 'blue' ? 0x38bdf8 : 0xf87171;
     const teamRing = this.add.circle(x, y, 28, ringColor, 0.08).setStrokeStyle(2.5, ringColor, 0.85).setDepth(5);
     const shieldRing = this.add.circle(x, y, 34, 0xfef08a, 0.14).setStrokeStyle(2, 0xfef08a, 0.9).setVisible(false).setDepth(9);
+    const guardianRing = this.add.circle(x, y, 38, 0x10b981, 0.08).setStrokeStyle(2, 0x34d399, 0.85).setVisible(false).setDepth(4);
     const sprite = this.add.sprite(x, y, `hero_${heroDef.id}`).setDepth(10);
     sprite.setDisplaySize(64, 64);
 
@@ -781,6 +883,7 @@ export class BattleScene extends Phaser.Scene {
       sprite,
       teamRing,
       shieldRing,
+      guardianRing,
       hpBarBg: hpBg,
       hpBarFill,
       manaBarFill,
@@ -804,17 +907,27 @@ export class BattleScene extends Phaser.Scene {
 
     this.matchTimeSec += dt;
 
-    // Process shop purchases queued from React HUD
-    while (this.initData.inputBridge.buyItemQueue.length > 0) {
-      const itemId = this.initData.inputBridge.buyItemQueue.shift()!;
-      this.tryBuyItem(this.playerHero, itemId);
+    // Enqueue local input bridge into scalable MatchTransport command stream
+    this.transport.enqueueBridgeInput(this.playerHero.id, this.initData.inputBridge);
+    const commands = this.transport.drainRemoteCommands();
+    let transportMoveX = 0;
+    let transportMoveY = 0;
+    const transportActions: Array<'basic' | 's1' | 's2' | 's3' | 'ult' | 'recall' | 'recovery'> = [];
+    for (const cmd of commands) {
+      if (cmd.type === 'MOVE') {
+        transportMoveX = cmd.vx;
+        transportMoveY = cmd.vy;
+      } else if (cmd.type === 'ACTION') {
+        transportActions.push(cmd.action);
+      } else if (cmd.type === 'BUY_ITEM') {
+        this.tryBuyItem(this.playerHero, cmd.itemId);
+      } else if (cmd.type === 'QUICK_CHAT') {
+        this.triggerHeroQuickChat(this.playerHero, cmd.chatId, true);
+      }
     }
-
-    // Process quick-chat messages queued from React HUD
-    while (this.initData.inputBridge.quickChatQueue.length > 0) {
-      const chatId = this.initData.inputBridge.quickChatQueue.shift()!;
-      this.triggerHeroQuickChat(this.playerHero, chatId, true);
-    }
+    this.initData.inputBridge.moveX = transportMoveX;
+    this.initData.inputBridge.moveY = transportMoveY;
+    this.initData.inputBridge.triggerQueue.push(...transportActions);
 
     // Tick down chat feed TTL & hero speech bubbles
     for (let i = this.chatFeed.length - 1; i >= 0; i--) {
@@ -859,6 +972,9 @@ export class BattleScene extends Phaser.Scene {
 
     // Update AoE Zones
     this.updateAoEZones(dt);
+
+    // Update Pooled FX (Floating Texts & Particles)
+    this.updateFxPools(dt);
 
     // Sync Visuals
     this.syncEntityVisuals();
@@ -1121,6 +1237,24 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
+    // Priority 0: Assist nearby wounded ally under attack
+    if (enemyHeroes.length === 0) {
+      const allyInDanger = this.heroes.find(
+        (h) =>
+          !h.isDead &&
+          h.team === hero.team &&
+          h.id !== hero.id &&
+          h.hp / h.maxHp < 0.65 &&
+          this.matchTimeSec - h.lastDamagedTime < 3.5 &&
+          Phaser.Math.Distance.Between(hero.x, hero.y, h.x, h.y) < 620
+      );
+      if (allyInDanger) {
+        hero.botState = 'ASSIST';
+        this.steerTowards(hero, allyInDanger.x, allyInDanger.y, dt);
+        return;
+      }
+    }
+
     // Priority 1: Fight nearby enemy hero if safe (don't dive enemy turret without allied minions!)
     if (enemyHeroes.length > 0) {
       const targetHero = enemyHeroes[0];
@@ -1280,6 +1414,20 @@ export class BattleScene extends Phaser.Scene {
         entity.y = st.y + (dy / dist) * minD;
       }
     }
+
+    // Soft hero-to-hero separation so teamfights stay legible
+    for (const other of this.heroes) {
+      if (other.isDead || (other.x === entity.x && other.y === entity.y)) continue;
+      const dx = entity.x - other.x;
+      const dy = entity.y - other.y;
+      const dist = Math.hypot(dx, dy);
+      const minD = entity.radius + other.radius - 4;
+      if (dist < minD && dist > 0.01) {
+        const push = (minD - dist) * 0.5;
+        entity.x += (dx / dist) * push;
+        entity.y += (dy / dist) * push;
+      }
+    }
   }
 
   private findBestTarget(
@@ -1291,6 +1439,38 @@ export class BattleScene extends Phaser.Scene {
     | { kind: 'structure'; obj: StructureEntity; dist: number }
     | { kind: 'guardian'; obj: GuardianEntity; dist: number }
     | null {
+    // Honor player's explicit click/tap locked target when in range
+    if (attacker.isHuman && this.lockedTarget) {
+      if (this.lockedTarget.kind === 'hero') {
+        const h = this.heroes.find((item) => item.id === this.lockedTarget!.id);
+        if (h && !h.isDead) {
+          const d = Phaser.Math.Distance.Between(attacker.x, attacker.y, h.x, h.y);
+          if (d <= range + h.radius) return { kind: 'hero', obj: h, dist: d };
+          if (d > range + 340) this.lockedTarget = null;
+        } else {
+          this.lockedTarget = null;
+        }
+      } else if (this.lockedTarget.kind === 'guardian') {
+        const g = this.guardians.find((item) => item.id === this.lockedTarget!.id);
+        if (g && g.alive) {
+          const d = Phaser.Math.Distance.Between(attacker.x, attacker.y, g.x, g.y);
+          if (d <= range + g.radius) return { kind: 'guardian', obj: g, dist: d };
+          if (d > range + 340) this.lockedTarget = null;
+        } else {
+          this.lockedTarget = null;
+        }
+      } else if (this.lockedTarget.kind === 'structure') {
+        const s = this.structures.find((item) => item.id === this.lockedTarget!.id);
+        if (s && !s.destroyed) {
+          const d = Phaser.Math.Distance.Between(attacker.x, attacker.y, s.x, s.y);
+          if (d <= range + s.radius) return { kind: 'structure', obj: s, dist: d };
+          if (d > range + 340) this.lockedTarget = null;
+        } else {
+          this.lockedTarget = null;
+        }
+      }
+    }
+
     let bestHero: { kind: 'hero'; obj: HeroEntity; dist: number } | null = null;
     for (const h of this.heroes) {
       if (h.isDead || h.team === attacker.team) continue;
@@ -1756,18 +1936,38 @@ export class BattleScene extends Phaser.Scene {
   private updateStructures(dt: number): void {
     for (const s of this.structures) {
       if (s.destroyed) continue;
+      if (s.aggroTimer > 0) {
+        s.aggroTimer -= dt;
+        if (s.aggroTimer <= 0) s.aggroHeroId = null;
+      }
       if (s.attackCooldown > 0) {
         s.attackCooldown -= dt;
         continue;
       }
 
-      // Target enemy minions in range first, then enemy heroes
+      // MOBA Turret Aggro: protect allied heroes if an enemy hero attacks them inside turret range
       let target: { x: number; y: number } | null = null;
-      for (const m of this.minions) {
-        if (!m.active || m.team === s.team) continue;
-        if (Phaser.Math.Distance.Between(s.x, s.y, m.x, m.y) <= s.attackRange) {
-          target = m;
-          break;
+      if (s.aggroHeroId) {
+        const aggroHero = this.heroes.find((h) => h.id === s.aggroHeroId);
+        if (
+          aggroHero &&
+          !aggroHero.isDead &&
+          Phaser.Math.Distance.Between(s.x, s.y, aggroHero.x, aggroHero.y) <= s.attackRange
+        ) {
+          target = aggroHero;
+        } else {
+          s.aggroHeroId = null;
+        }
+      }
+
+      // Otherwise target enemy minions in range first, then nearest enemy hero
+      if (!target) {
+        for (const m of this.minions) {
+          if (!m.active || m.team === s.team) continue;
+          if (Phaser.Math.Distance.Between(s.x, s.y, m.x, m.y) <= s.attackRange) {
+            target = m;
+            break;
+          }
         }
       }
       if (!target) {
@@ -2065,6 +2265,18 @@ export class BattleScene extends Phaser.Scene {
     if (attacker) {
       target.lastDamagedByHeroId = attacker.id;
       target.lastDamagedTime = this.matchTimeSec;
+
+      // Trigger allied turret protection aggro if attacker is within turret range
+      for (const s of this.structures) {
+        if (
+          !s.destroyed &&
+          s.team === target.team &&
+          Phaser.Math.Distance.Between(s.x, s.y, attacker.x, attacker.y) <= s.attackRange
+        ) {
+          s.aggroHeroId = attacker.id;
+          s.aggroTimer = 3.5;
+        }
+      }
     }
 
     if (target.isHuman || attacker?.isHuman) {
@@ -2085,6 +2297,7 @@ export class BattleScene extends Phaser.Scene {
     victim.sprite.setVisible(false);
     victim.teamRing.setVisible(false);
     victim.shieldRing.setVisible(false);
+    victim.guardianRing.setVisible(false);
     victim.hpBarBg.setVisible(false);
     victim.hpBarFill.setVisible(false);
     victim.manaBarFill.setVisible(false);
@@ -2366,6 +2579,7 @@ export class BattleScene extends Phaser.Scene {
       h.sprite.setPosition(h.x, h.y).setRotation(h.facing);
       h.teamRing.setPosition(h.x, h.y);
       h.shieldRing.setPosition(h.x, h.y).setVisible(h.shield > 0);
+      h.guardianRing.setPosition(h.x, h.y).setVisible(h.guardianBuffTimer > 0);
       h.hpBarBg.setPosition(h.x, h.y - 42);
       h.hpBarFill.setPosition(h.x - 29, h.y - 43).setDisplaySize(58 * Math.max(0, h.hp / h.maxHp), 5);
       h.manaBarFill.setPosition(h.x - 29, h.y - 39).setDisplaySize(58 * Math.max(0, h.mana / h.maxMana), 2.5);
@@ -2374,6 +2588,47 @@ export class BattleScene extends Phaser.Scene {
         h.bubbleBg.setPosition(h.x, h.y - 78);
         h.bubbleText.setPosition(h.x, h.y - 78);
       }
+    }
+
+    // Update target lock-on reticle visual
+    if (this.lockedTarget) {
+      let rx = 0;
+      let ry = 0;
+      let rad = 34;
+      let valid = false;
+      if (this.lockedTarget.kind === 'hero') {
+        const h = this.heroes.find((item) => item.id === this.lockedTarget!.id);
+        if (h && !h.isDead) {
+          rx = h.x;
+          ry = h.y;
+          rad = h.radius + 14;
+          valid = true;
+        }
+      } else if (this.lockedTarget.kind === 'guardian') {
+        const g = this.guardians.find((item) => item.id === this.lockedTarget!.id);
+        if (g && g.alive) {
+          rx = g.x;
+          ry = g.y;
+          rad = g.radius + 14;
+          valid = true;
+        }
+      } else if (this.lockedTarget.kind === 'structure') {
+        const s = this.structures.find((item) => item.id === this.lockedTarget!.id);
+        if (s && !s.destroyed) {
+          rx = s.x;
+          ry = s.y;
+          rad = s.radius + 12;
+          valid = true;
+        }
+      }
+      if (valid) {
+        this.targetReticle.setPosition(rx, ry).setRadius(rad).setVisible(true);
+      } else {
+        this.lockedTarget = null;
+        this.targetReticle.setVisible(false);
+      }
+    } else {
+      this.targetReticle.setVisible(false);
     }
 
     for (const m of this.minions) {
@@ -2395,27 +2650,40 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  private updateFxPools(dt: number): void {
+    for (const ft of this.floatingTextPool) {
+      if (!ft.active) continue;
+      ft.life -= dt;
+      ft.text.y += ft.vy * dt;
+      ft.text.setAlpha(Math.max(0, ft.life / ft.maxLife));
+      if (ft.life <= 0) {
+        ft.active = false;
+        ft.text.setVisible(false);
+      }
+    }
+
+    for (const lp of this.lightParticlePool) {
+      if (!lp.active) continue;
+      lp.life -= dt;
+      lp.sprite.x += lp.vx * dt;
+      lp.sprite.y += lp.vy * dt;
+      const ratio = Math.max(0, lp.life / lp.maxLife);
+      lp.sprite.setAlpha(ratio).setScale(0.4 + 0.6 * ratio);
+      if (lp.life <= 0) {
+        lp.active = false;
+        lp.sprite.setVisible(false);
+      }
+    }
+  }
+
   private spawnFloatingText(x: number, y: number, msg: string, color: string): void {
     if (this.initData.quality === 'low') return;
-    const t = this.add
-      .text(x, y, msg, {
-        fontSize: '13px',
-        fontFamily: 'JetBrains Mono',
-        fontStyle: 'bold',
-        color,
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(30);
-
-    this.tweens.add({
-      targets: t,
-      y: y - 28,
-      alpha: 0,
-      duration: 750,
-      onComplete: () => t.destroy(),
-    });
+    const slot = this.floatingTextPool.find((ft) => !ft.active);
+    if (!slot) return;
+    slot.active = true;
+    slot.life = 0.75;
+    slot.maxLife = 0.75;
+    slot.text.setText(msg).setColor(color).setPosition(x, y).setAlpha(1).setVisible(true);
   }
 
   private spawnRingPulse(x: number, y: number, maxR: number, color: number, durationSec: number): void {
@@ -2449,19 +2717,21 @@ export class BattleScene extends Phaser.Scene {
   private spawnLightBurst(x: number, y: number, color: number, count: number): void {
     const actualCount = this.initData.quality === 'low' ? Math.ceil(count / 2) : count;
     for (let i = 0; i < actualCount; i++) {
+      const slot = this.lightParticlePool.find((lp) => !lp.active);
+      if (!slot) break;
       const ang = (Math.PI * 2 * i) / actualCount + Math.random() * 0.4;
-      const dist = 24 + Math.random() * 44;
-      const p = this.add.sprite(x, y, 'particle_light').setTint(color).setDepth(16);
-      p.setDisplaySize(14, 14);
-      this.tweens.add({
-        targets: p,
-        x: x + Math.cos(ang) * dist,
-        y: y + Math.sin(ang) * dist,
-        alpha: 0,
-        scale: 0.3,
-        duration: 420 + Math.random() * 200,
-        onComplete: () => p.destroy(),
-      });
+      const speed = 55 + Math.random() * 85;
+      slot.active = true;
+      slot.life = 0.48;
+      slot.maxLife = 0.48;
+      slot.vx = Math.cos(ang) * speed;
+      slot.vy = Math.sin(ang) * speed;
+      slot.sprite
+        .setPosition(x, y)
+        .setTint(color)
+        .setDisplaySize(14, 14)
+        .setAlpha(1)
+        .setVisible(true);
     }
   }
 
