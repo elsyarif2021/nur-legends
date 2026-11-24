@@ -197,11 +197,12 @@ export const Lobby: React.FC<LobbyProps> = ({
                 soundEngine.playClick();
                 onLogout();
               }}
-              className="px-2.5 py-2 rounded-lg bg-[#0b192b]/90 border border-rose-500/40 text-rose-200 hover:bg-rose-950/50 text-xs font-semibold flex items-center gap-1.5"
+              className="min-h-11 shrink-0 px-2.5 sm:px-3 py-2 rounded-lg bg-rose-950/90 border border-rose-400/70 text-rose-100 hover:bg-rose-900 active:bg-rose-800 text-xs font-bold flex items-center gap-1.5 touch-manipulation"
+              aria-label="Logout — keluar dari akun"
               title={`Keluar Akun (${authUser.email})`}
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Keluar</span>
+              <span>Logout</span>
             </button>
           ) : (
             <button
