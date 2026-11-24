@@ -942,7 +942,17 @@ async function startServer(): Promise<void> {
         case 'game:input': {
           if (!session.roomCode) break;
           const room = rooms.get(session.roomCode);
-          if (!room) break;
+          if (!room || room.status !== 'playing') break;
+          const command = msg.command as Record<string, unknown> | undefined;
+          if (!command || !Number.isSafeInteger(command.seq) || Number(command.seq) < 0) break;
+          if (command.type === 'MOVE') {
+            if (typeof command.vx !== 'number' || typeof command.vy !== 'number' || !Number.isFinite(command.vx) || !Number.isFinite(command.vy) || Math.hypot(command.vx, command.vy) > 1.01) break;
+          } else if (command.type === 'ACTION') {
+            if (!['basic','s1','s2','s3','ult','recall','recovery'].includes(String(command.action))) break;
+          } else if (command.type === 'BUY_ITEM' || command.type === 'QUICK_CHAT') {
+            const value = command.type === 'BUY_ITEM' ? command.itemId : command.chatId;
+            if (typeof value !== 'string' || value.length > 80) break;
+          } else break;
           const hostSession = sessions.get(room.hostId);
           if (!hostSession || hostSession.ws.readyState !== WebSocket.OPEN) break;
 
@@ -950,7 +960,7 @@ async function startServer(): Promise<void> {
           sendJson(hostSession.ws, {
             type: 'game:input',
             fromPlayerId: playerId,
-            command: msg.command,
+            command: { ...command, playerId },
           });
           break;
         }

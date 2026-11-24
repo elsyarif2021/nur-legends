@@ -8,6 +8,8 @@ import { InstallGame } from './components/InstallGame';
 import { AuthModal } from './components/AuthModal';
 import { BattleArena } from './components/BattleArena';
 import { Lobby } from './components/Lobby';
+import { readDifficulty } from './game/BotDifficulty';
+import type { BotDifficulty } from './types/game';
 import { readArena, type ArenaId } from './game/ArenaThemes';
 import { onlineClient } from './network/OnlineRoomClient';
 import { webrtcManager } from './network/WebRTCManager';
@@ -94,6 +96,8 @@ export default function App() {
     () => !getInitialInviteRoomCode()
   );
   const [screen, setScreen] = useState<ScreenView>('LOBBY');
+  const [difficulty, setDifficulty] = useState<BotDifficulty>(readDifficulty);
+  const selectDifficulty = (v: BotDifficulty) => { setDifficulty(v); try { localStorage.setItem('nur_bot_difficulty',v); } catch {} };
   const [arenaId, setArenaId] = useState<ArenaId>(readArena);
   const selectArena = (id: ArenaId) => {
     setArenaId(id);
@@ -372,6 +376,8 @@ export default function App() {
             progress={progress}
             authUser={authUser}
             initialRoomCode={initialRoomCode}
+            difficulty={difficulty}
+            onSelectDifficulty={selectDifficulty}
             arenaId={arenaId}
             onSelectArena={selectArena}
             onStartMatch={handleStartMatch}
@@ -426,6 +432,7 @@ export default function App() {
           narratorEnabled={guideEnabled}
           heroId={progress.selectedHeroId}
           mode={activeMode}
+          difficulty={activeMode === 'online' ? 'normal' : difficulty}
           arenaId={activeMode === 'online' ? 'oasis' : arenaId}
           onlineRoom={onlineRoom}
           onlinePlayerId={onlinePlayerId}

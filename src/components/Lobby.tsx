@@ -1,3 +1,5 @@
+import { BOT_DIFFICULTIES } from '../game/BotDifficulty';
+import type { BotDifficulty } from '../types/game';
 import { ARENA_THEMES, type ArenaId } from '../game/ArenaThemes';
 import React, { useState } from 'react';
 import {
@@ -44,6 +46,8 @@ interface LobbyProps {
   progress: PlayerProgress;
   authUser: AuthUser | null;
   initialRoomCode?: string | null;
+  difficulty: BotDifficulty;
+  onSelectDifficulty: (value: BotDifficulty) => void;
   arenaId: ArenaId;
   onSelectArena: (id: ArenaId) => void;
   onStartMatch: (mode: GameMode) => void;
@@ -75,6 +79,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   progress,
   authUser,
   initialRoomCode,
+  difficulty,
+  onSelectDifficulty,
   arenaId,
   onSelectArena,
   onStartMatch,
@@ -391,6 +397,15 @@ export const Lobby: React.FC<LobbyProps> = ({
             </select>
             <p className="mt-1 text-[11px] text-slate-300">{ARENA_THEMES[arenaId].description} · 5v5 / Latihan</p>
             <p className="text-[10px] text-slate-400">Online: Oasis of Light</p>
+          </div>
+          <label className="block text-xs text-amber-200">Kesulitan Bot
+            <select value={difficulty} onChange={e => onSelectDifficulty(e.target.value as BotDifficulty)} className="block w-full min-h-10 rounded-lg border border-slate-600 bg-slate-900 text-white px-2">
+              {(Object.keys(BOT_DIFFICULTIES) as BotDifficulty[]).map(id => <option key={id} value={id}>{BOT_DIFFICULTIES[id].label}</option>)}
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { soundEngine.unlock(); onStartMatch('duel'); }} className="min-h-11 rounded-xl bg-slate-800 border border-amber-500/50 text-amber-200 font-bold text-xs">Duel 1v1</button>
+            <button type="button" onClick={() => { soundEngine.unlock(); onStartMatch('3v3'); }} className="min-h-11 rounded-xl bg-slate-800 border border-amber-500/50 text-amber-200 font-bold text-xs">Battle 3v3</button>
           </div>
           {/* Primary Play CTAs */}
           <div className="flex flex-col gap-2">

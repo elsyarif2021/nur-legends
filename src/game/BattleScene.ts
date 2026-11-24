@@ -1,3 +1,5 @@
+import { BOT_DIFFICULTIES } from './BotDifficulty';
+import type { BotDifficulty } from '../types/game';
 import { ARENA_THEMES, type ArenaId } from './ArenaThemes';
 import Phaser from 'phaser';
 import { LocalBotTransport } from '../network/MatchTransport';
@@ -235,6 +237,7 @@ interface AoEZone {
 }
 
 export interface BattleSceneInitData {
+  difficulty?: BotDifficulty;
   arenaId?: ArenaId;
   playerHeroId: HeroId;
   mode: GameMode;
@@ -615,6 +618,21 @@ export class BattleScene extends Phaser.Scene {
     const redF = this.add.circle(RED_FOUNTAIN.x, RED_FOUNTAIN.y, 95, 0xef4444, 0.25).setDepth(1);
     redF.setStrokeStyle(3, 0xfca5a5, 0.85);
 
+    // Arena-specific static scenery, kept outside collision paths.
+    const scenery = this.add.graphics().setDepth(1);
+    const arena = this.initData.arenaId ?? 'oasis';
+    for (const obstacle of ARENA_OBSTACLES) {
+      const x = obstacle.x, y = obstacle.y, r = obstacle.r;
+      scenery.fillStyle(theme.grid, .65); scenery.fillCircle(x,y,r+12);
+      scenery.lineStyle(2,theme.trim,.35); scenery.strokeCircle(x,y,r+12);
+      if (arena === 'forest' || arena === 'oasis') {
+        for (let i=0;i<5;i++) { const ang=i*Math.PI*2/5; scenery.fillStyle(arena === 'forest' ? 0x256b42 : 0x3e7750,.9); scenery.fillCircle(x+Math.cos(ang)*r*.45,y+Math.sin(ang)*r*.45,r*.44); }
+      } else if (arena === 'crystal') {
+        scenery.fillStyle(0x9cdbf7,.8); scenery.fillTriangle(x-r*.5,y+r*.5,x,y-r*.8,x+r*.5,y+r*.5);
+      } else {
+        scenery.fillStyle(theme.bridge,.8); scenery.fillRoundedRect(x-r*.55,y-r*.55,r*1.1,r*1.1,8);
+      }
+    }
     // Outer Palace Wall Border
     bg.lineStyle(18, theme.wall, 1);
     bg.strokeRect(9, 9, WORLD_SIZE - 18, WORLD_SIZE - 18);
@@ -707,8 +725,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private createGuardians(): void {
-    for (const def of NEUTRAL_GUARDIANS) {
-      const sprite = this.add.sprite(def.x, def.y, def.id).setDepth(7);
+    const arena = this.initData.arenaId ?? 'oasis';
+    const names = { oasis: ['Penjaga Kristal Zamrud','Penjaga Kristal Emas'], desert: ['Penjaga Gurun','Penjaga Oasis'], forest: ['Penjaga Hutan','Penjaga Akar'], citadel: ['Penjaga Benteng','Penjaga Marmer'], crystal: ['Penjaga Es','Penjaga Kristal'] };
+    const extra = NEUTRAL_GUARDIANS.map((g,i) => ({...g,id: g.id + '_jungle', x: i ? 1840 : 960, y: i ? 960 : 1840, maxHp: 850, attackDamage: 36, goldReward: 150}));
+    const defs = this.initData.mode === 'online' ? NEUTRAL_GUARDIANS : [...NEUTRAL_GUARDIANS,...extra];
+    for (const original of defs) {
+      const def = {...original,name: names[arena][original.id.includes('gold') ? 1 : 0] + (original.id.endsWith('_jungle') ? ' Muda' : '')};
+      const sprite = this.add.sprite(def.x, def.y, def.id.replace('_jungle','')).setDepth(7);
       sprite.setDisplaySize(86, 86);
       const hpBg = this.add.rectangle(def.x, def.y - 54, 72, 7, 0x090d16, 0.9).setDepth(20);
       const hpFill = this.add
@@ -901,7 +924,7 @@ export class BattleScene extends Phaser.Scene {
       HEROES.zahra,
     ];
 
-    const countPerTeam = this.initData.mode === 'training' ? 1 : 5;
+    const countPerTeam = this.initData.mode === 'training' || this.initData.mode === 'duel' ? 1 : this.initData.mode === '3v3' ? 3 : 5;
 
     for (let i = 0; i < countPerTeam; i++) {
       const isHuman = i === 0;
@@ -1174,7 +1197,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private spawnMinionWaves(): void {
-    const lanes: LaneId[] = this.initData.mode === 'training' ? ['mid'] : ['top', 'mid', 'bot'];
+    const lanes: LaneId[] = this.initData.mode === 'training' || this.initData.mode === 'duel' ? ['mid'] : ['top', 'mid', 'bot'];
     for (const lane of lanes) {
       for (const team of ['blue', 'red'] as Team[]) {
         const wps = team === 'blue' ? LANE_WAYPOINTS_BLUE[lane] : LANE_WAYPOINTS_RED[lane];
@@ -1420,10 +1443,11 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private controlBotHero(hero: HeroEntity, dt: number): void {
+    const difficulty = BOT_DIFFICULTIES[this.initData.difficulty ?? 'normal'];
     // Periodic item purchase
     hero.botBuyTimer -= dt;
     if (hero.botBuyTimer <= 0) {
-      hero.botBuyTimer = 8;
+      hero.botBuyTimer = difficulty.buyInterval;
       if (hero.items.length < 6) {
         const affordable = SHOP_ITEMS.filter(
           (item) => hero.gold >= item.cost && !hero.items.includes(item.id)
@@ -1439,14 +1463,14 @@ export class BattleScene extends Phaser.Scene {
     const hpRatio = hero.hp / hero.maxHp;
 
     // State Transitions
-    if (hpRatio < 0.26) {
+    if (hpRatio < difficulty.retreat) {
       hero.botState = 'RETREAT';
     } else if (hero.botState === 'RETREAT' && hpRatio > 0.82) {
       hero.botState = 'LANE';
     }
 
     const enemyHeroes = this.heroes.filter(
-      (h) => !h.isDead && h.team !== hero.team && Phaser.Math.Distance.Between(hero.x, hero.y, h.x, h.y) < 420
+      (h) => !h.isDead && h.team !== hero.team && Phaser.Math.Distance.Between(hero.x, hero.y, h.x, h.y) < difficulty.awareness
     );
     const enemyMinions = this.minions.filter(
       (m) => m.active && m.team !== hero.team && Phaser.Math.Distance.Between(hero.x, hero.y, m.x, m.y) < 360
@@ -1511,7 +1535,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Priority 1: Fight nearby enemy hero if safe (don't dive enemy turret without allied minions!)
     if (enemyHeroes.length > 0) {
-      const targetHero = enemyHeroes[0];
+      const targetHero = enemyHeroes.reduce((best, h) => h.hp / h.maxHp < best.hp / best.maxHp ? h : best);
       const nearEnemyTurret = enemyStructures.find(
         (s) => Phaser.Math.Distance.Between(targetHero.x, targetHero.y, s.x, s.y) < s.attackRange + 20
       );
@@ -1535,8 +1559,8 @@ export class BattleScene extends Phaser.Scene {
         }
 
         // Intelligent skill usage
-        if (dist < 260) {
-          if (hero.skillCooldowns[3] <= 0 && (targetHero.hp / targetHero.maxHp < 0.65 || enemyHeroes.length >= 2)) {
+        if (dist < difficulty.skillRange) {
+          if (hero.skillCooldowns[3] <= 0 && (targetHero.hp / targetHero.maxHp < difficulty.ultimateThreshold || enemyHeroes.length >= 2)) {
             this.castSkill(hero, 3);
           } else if (hero.skillCooldowns[0] <= 0) {
             this.castSkill(hero, 0);

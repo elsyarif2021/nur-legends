@@ -2,7 +2,8 @@ export type HeroId = 'amin' | 'faris' | 'hakim' | 'zahra' | 'zaid' | 'mumtaz' | 
 
 export type HeroRole = 'Tank' | 'Marksman' | 'Mage' | 'Support' | 'Fighter';
 
-export type GameMode = '5v5' | 'training' | 'online';
+export type GameMode = '5v5' | 'training' | 'online' | 'duel' | '3v3';
+export type BotDifficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'legendary';
 
 export type GraphicsQuality = 'low' | 'medium' | 'high';
 
