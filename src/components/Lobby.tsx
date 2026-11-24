@@ -1,3 +1,5 @@
+import { AdminDashboard } from './AdminDashboard';
+import { authClient } from '../services/authClient';
 import { BOT_DIFFICULTIES } from '../game/BotDifficulty';
 import type { BotDifficulty } from '../types/game';
 import { ARENA_THEMES, type ArenaId } from '../game/ArenaThemes';
@@ -101,6 +103,9 @@ export const Lobby: React.FC<LobbyProps> = ({
     initialRoomCode ? 'online' : null
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [adminAllowed,setAdminAllowed]=useState(false);
+  const [adminOpen,setAdminOpen]=useState(false);
+  React.useEffect(()=>{const controller=new AbortController();setAdminAllowed(false);setAdminOpen(false);if(authUser)void authClient.getAdminOverview(controller.signal).then(d=>{if(!controller.signal.aborted)setAdminAllowed(!!d);}).catch(()=>{});return()=>controller.abort();},[authUser?.id]);
 
   const { heroes, heroList } = useGameCatalog();
   const selectedHero = heroes[progress.selectedHeroId] || heroList[0];
@@ -203,6 +208,7 @@ export const Lobby: React.FC<LobbyProps> = ({
             {progress.gold} Emas
           </div>
 
+          {adminAllowed && <button type="button" onClick={()=>setAdminOpen(true)} className="min-h-11 rounded-lg border border-amber-500/50 bg-slate-900 px-3 text-xs font-bold text-amber-200">Super Admin</button>}
           {authUser ? (
             <button
               type="button"
@@ -465,6 +471,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         </span>
       </footer>
 
+      {adminOpen && adminAllowed && authUser && <AdminDashboard onClose={()=>setAdminOpen(false)}/>}
       {/* ACTIVE MODALS */}
       {activeModal === 'heroes' && (
         <HeroCollectionModal

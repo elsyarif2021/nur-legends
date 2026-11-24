@@ -465,6 +465,36 @@ async function startServer(): Promise<void> {
     next();
   });
 
+  // Admin authorization is server-side, fail closed when no allowlist is configured.
+  app.get('/api/admin/overview', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const token = extractBearerToken(req);
+    const allowed = new Set((process.env.SUPER_ADMIN_EMAILS || '').split(',').map(e=>e.trim().toLowerCase()).filter(Boolean));
+    if (!token || !allowed.size) { res.status(403).json({error:'Akses admin tidak diizinkan.'}); return; }
+    let email: string | undefined;
+    try {
+      const convexUrl = (process.env.CONVEX_URL || process.env.VITE_CONVEX_URL || '').trim();
+      if (convexUrl) {
+        const client = new ConvexHttpClient(convexUrl);
+        const ref = makeFunctionReference<'action', {token:string}, {ok:boolean;user?:{email:string}}>('authActions:getMe');
+        const result = await client.action(ref,{token});
+        if (result.ok) email = result.user?.email;
+      } else {
+        const verified = verifySessionToken(token);
+        if (verified) email = accountsById.get(verified.sub)?.email;
+      }
+    } catch { res.status(503).json({error:'Verifikasi sesi tidak tersedia.'}); return; }
+    if (!email || !allowed.has(email.toLowerCase())) { res.status(403).json({error:'Akses admin tidak diizinkan.'}); return; }
+    const online = [...sessions.values()].filter(s=>s.ws.readyState===WebSocket.OPEN);
+    const activeRooms = [...rooms.values()];
+    res.json({ ok:true, timestamp:Date.now(), uptimeSec:Math.floor(process.uptime()), protocolVersion:3, simulation:'host-relay',
+      playersOnline:online.length, reconnecting:[...sessions.values()].filter(s=>s.expiresAt && s.expiresAt>Date.now()).length,
+      roomsWaiting:activeRooms.filter(r=>r.status==='waiting').length, roomsPlaying:activeRooms.filter(r=>r.status==='playing').length,
+      memoryMb:Math.round(process.memoryUsage().rss/1048576),
+      rooms:activeRooms.slice(0,100).map(r=>({code:r.code,name:r.name,status:r.status,isPublic:r.isPublic,playerCount:r.players.length,maxPlayers:r.maxPlayers,createdAt:r.createdAt}))
+    });
+  });
+
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, rooms: rooms.size, playersOnline: [...sessions.values()].filter(s => s.ws.readyState === WebSocket.OPEN).length, protocolVersion: 3, simulation: 'host-relay' });
   });

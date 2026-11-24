@@ -3,6 +3,12 @@ import { getApiUrl } from '../config/endpoints';
 import { AuthUser, PlayerProgress } from '../types/game';
 import { getConvexHttpClient } from './convexClient';
 
+export interface AdminOverview {
+  ok: true; timestamp: number; uptimeSec: number; protocolVersion: number; simulation: string;
+  playersOnline: number; reconnecting: number; roomsWaiting: number; roomsPlaying: number; memoryMb: number;
+  rooms: {code:string; name:string; status:'waiting'|'playing'; isPublic:boolean; playerCount:number; maxPlayers:number; createdAt:number}[];
+}
+
 export interface AuthSessionResult {
   user: AuthUser;
   progress: PlayerProgress | null;
@@ -49,6 +55,15 @@ class AuthClient {
       this.currentUser = data.user;
       return { user: data.user, progress: data.progress ?? null };
     } catch { return null; }
+  }
+
+  public async getAdminOverview(signal?: AbortSignal): Promise<AdminOverview | null> {
+    if (!this.token) return null;
+    const res = await fetch(getApiUrl('/api/admin/overview'), { headers: { Authorization: 'Bearer ' + this.token }, cache: 'no-store', signal });
+    if (res.status === 401 || res.status === 403 || res.status === 404) return null;
+    if (!res.ok) throw new Error('Server admin tidak tersedia.');
+    const data = await parseJsonSafe<AdminOverview>(res);
+    return data?.ok === true ? data : null;
   }
 
   public getUser(): AuthUser | null {
