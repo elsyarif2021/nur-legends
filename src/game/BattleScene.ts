@@ -1,3 +1,4 @@
+import { ARENA_THEMES, type ArenaId } from './ArenaThemes';
 import Phaser from 'phaser';
 import { LocalBotTransport } from '../network/MatchTransport';
 import { onlineClient } from '../network/OnlineRoomClient';
@@ -234,6 +235,7 @@ interface AoEZone {
 }
 
 export interface BattleSceneInitData {
+  arenaId?: ArenaId;
   playerHeroId: HeroId;
   mode: GameMode;
   quality: GraphicsQuality;
@@ -506,22 +508,23 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private drawBattlefieldMap(): void {
+    const theme = ARENA_THEMES[this.initData.arenaId ?? 'oasis'];
     const bg = this.add.graphics();
     bg.setDepth(0);
 
     // Base rich desert-oasis grass & sandstone courtyard
-    bg.fillStyle(0x13382e, 1);
+    bg.fillStyle(theme.ground, 1);
     bg.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
 
     // Subtle geometric courtyard grid
-    bg.lineStyle(1, 0x1b4d3e, 0.45);
+    bg.lineStyle(1, theme.grid, 0.45);
     for (let i = 0; i <= WORLD_SIZE; i += 140) {
       bg.lineBetween(i, 0, i, WORLD_SIZE);
       bg.lineBetween(0, i, WORLD_SIZE, i);
     }
 
     // Sandstone paved lanes (Top, Mid, Bot)
-    bg.lineStyle(150, 0xb89c6d, 0.9);
+    bg.lineStyle(150, theme.lane, 0.9);
     // Top lane
     bg.beginPath();
     bg.moveTo(300, 2400);
@@ -535,11 +538,11 @@ export class BattleScene extends Phaser.Scene {
     bg.lineTo(2500, 400);
     bg.strokePath();
     // Mid lane
-    bg.lineStyle(160, 0xb89c6d, 0.9);
+    bg.lineStyle(160, theme.lane, 0.9);
     bg.lineBetween(340, 2460, 2460, 340);
 
     // Inner lane lighter marble runner
-    bg.lineStyle(96, 0xd8c59e, 0.55);
+    bg.lineStyle(96, theme.runner, 0.55);
     bg.beginPath();
     bg.moveTo(300, 2400);
     bg.lineTo(300, 300);
@@ -553,15 +556,15 @@ export class BattleScene extends Phaser.Scene {
     bg.lineBetween(340, 2460, 2460, 340);
 
     // Turquoise River diagonally from top-left to bottom-right
-    bg.lineStyle(130, 0x0f766e, 0.92);
+    bg.lineStyle(130, theme.river, 0.92);
     bg.lineBetween(120, 120, 2680, 2680);
-    bg.lineStyle(76, 0x14b8a6, 0.55);
+    bg.lineStyle(76, theme.water, 0.55);
     bg.lineBetween(120, 120, 2680, 2680);
 
     // Three ornate bridges over the river (Top-Left corner, Mid center, Bot-Right corner)
     const drawBridge = (cx: number, cy: number, angleDeg: number) => {
-      const rect = this.add.rectangle(cx, cy, 210, 150, 0xe7dec8);
-      rect.setStrokeStyle(5, 0xd4af37);
+      const rect = this.add.rectangle(cx, cy, 210, 150, theme.bridge);
+      rect.setStrokeStyle(5, theme.trim);
       rect.setRotation(Phaser.Math.DegToRad(angleDeg));
       rect.setDepth(1);
     };
@@ -569,14 +572,21 @@ export class BattleScene extends Phaser.Scene {
     drawBridge(1400, 1400, -45);
     drawBridge(2500, 2500, 45);
 
-    // Center Mid-Lane Islamic 8-pointed Star Medallion
+    // Circular geometric rosette without intersecting cross strokes.
     const med = this.add.graphics().setDepth(1);
-    med.lineStyle(3, 0xd4af37, 0.7);
-    med.strokeRect(1335, 1335, 130, 130);
-    const rotRect = this.add.rectangle(1400, 1400, 130, 130);
-    rotRect.setStrokeStyle(3, 0xd4af37, 0.7);
-    rotRect.setRotation(Math.PI / 4);
-    rotRect.setDepth(1);
+    med.lineStyle(3, theme.trim, 0.85);
+    med.strokeCircle(1400, 1400, 76);
+    med.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const angle = -Math.PI / 2 + i * Math.PI / 8;
+      const radius = i % 2 ? 43 : 66;
+      const x = 1400 + Math.cos(angle) * radius;
+      const y = 1400 + Math.sin(angle) * radius;
+      if (i === 0) med.moveTo(x, y); else med.lineTo(x, y);
+    }
+    med.closePath();
+    med.strokePath();
+    med.strokeCircle(1400, 1400, 18);
 
     // Blue & Red Base Courtyards + Healing Fountains
     bg.fillStyle(0x0f2942, 0.95);
@@ -606,7 +616,7 @@ export class BattleScene extends Phaser.Scene {
     redF.setStrokeStyle(3, 0xfca5a5, 0.85);
 
     // Outer Palace Wall Border
-    bg.lineStyle(18, 0x927238, 1);
+    bg.lineStyle(18, theme.wall, 1);
     bg.strokeRect(9, 9, WORLD_SIZE - 18, WORLD_SIZE - 18);
   }
 

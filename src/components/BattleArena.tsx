@@ -1,3 +1,4 @@
+import type { ArenaId } from '../game/ArenaThemes';
 import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { BattleScene, BattleSceneInitData } from '../game/BattleScene';
@@ -16,6 +17,7 @@ import { GameHUD } from './GameHUD';
 interface BattleArenaProps {
   narratorLanguage?: 'id-ID' | 'en-US';
   narratorEnabled?: boolean;
+  arenaId?: ArenaId;
   heroId: HeroId;
   mode: GameMode;
   onlineRoom?: OnlineRoomState | null;
@@ -31,6 +33,7 @@ interface BattleArenaProps {
 export const BattleArena: React.FC<BattleArenaProps> = ({
   narratorLanguage = 'id-ID',
   narratorEnabled = true,
+  arenaId = 'oasis',
   heroId,
   mode,
   onlineRoom = null,
@@ -139,6 +142,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     };
 
     const sceneInit: BattleSceneInitData = {
+      arenaId,
       playerHeroId: heroId,
       mode,
       quality: settings.quality,
@@ -180,7 +184,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     };
     // Intentionally recreate Phaser game only when matchKey, heroId, or mode changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroId, mode, matchKey]);
+  }, [heroId, mode, matchKey, arenaId]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[#07111e] touch-none select-none">

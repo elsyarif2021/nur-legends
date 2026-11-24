@@ -8,6 +8,7 @@ import { InstallGame } from './components/InstallGame';
 import { AuthModal } from './components/AuthModal';
 import { BattleArena } from './components/BattleArena';
 import { Lobby } from './components/Lobby';
+import { readArena, type ArenaId } from './game/ArenaThemes';
 import { onlineClient } from './network/OnlineRoomClient';
 import { webrtcManager } from './network/WebRTCManager';
 import { authClient } from './services/authClient';
@@ -93,6 +94,11 @@ export default function App() {
     () => !getInitialInviteRoomCode()
   );
   const [screen, setScreen] = useState<ScreenView>('LOBBY');
+  const [arenaId, setArenaId] = useState<ArenaId>(readArena);
+  const selectArena = (id: ArenaId) => {
+    setArenaId(id);
+    try { localStorage.setItem('nur_arena', id); } catch {}
+  };
   const [activeMode, setActiveMode] = useState<GameMode>('5v5');
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(() =>
     getInitialInviteRoomCode()
@@ -366,6 +372,8 @@ export default function App() {
             progress={progress}
             authUser={authUser}
             initialRoomCode={initialRoomCode}
+            arenaId={arenaId}
+            onSelectArena={selectArena}
             onStartMatch={handleStartMatch}
             onStartOnlineMatch={handleStartOnlineMatch}
             onChangePlayerName={handleChangePlayerName}
@@ -418,6 +426,7 @@ export default function App() {
           narratorEnabled={guideEnabled}
           heroId={progress.selectedHeroId}
           mode={activeMode}
+          arenaId={activeMode === 'online' ? 'oasis' : arenaId}
           onlineRoom={onlineRoom}
           onlinePlayerId={onlinePlayerId}
           settings={progress.settings}

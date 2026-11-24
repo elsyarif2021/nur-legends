@@ -1,3 +1,4 @@
+import { ARENA_THEMES, type ArenaId } from '../game/ArenaThemes';
 import React, { useState } from 'react';
 import {
   BookOpen,
@@ -43,6 +44,8 @@ interface LobbyProps {
   progress: PlayerProgress;
   authUser: AuthUser | null;
   initialRoomCode?: string | null;
+  arenaId: ArenaId;
+  onSelectArena: (id: ArenaId) => void;
   onStartMatch: (mode: GameMode) => void;
   onStartOnlineMatch: (room: OnlineRoomState, localPlayerId: string) => void;
   onChangePlayerName: (name: string) => void;
@@ -72,6 +75,8 @@ export const Lobby: React.FC<LobbyProps> = ({
   progress,
   authUser,
   initialRoomCode,
+  arenaId,
+  onSelectArena,
   onStartMatch,
   onStartOnlineMatch,
   onChangePlayerName,
@@ -378,6 +383,15 @@ export const Lobby: React.FC<LobbyProps> = ({
             </div>
           </div>
 
+          {/* Arena selector for local matches */}
+          <div className="rounded-xl border border-amber-500/40 bg-[#07111e]/90 p-2">
+            <label htmlFor="arena-select" className="block text-xs font-bold text-amber-200 mb-1">Arena Pertempuran</label>
+            <select id="arena-select" value={arenaId} onChange={e => onSelectArena(e.target.value as ArenaId)} className="w-full min-h-10 rounded-lg bg-slate-900 text-white border border-slate-600 px-2 text-sm">
+              {(Object.keys(ARENA_THEMES) as ArenaId[]).map(id => <option key={id} value={id}>{ARENA_THEMES[id].name}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-slate-300">{ARENA_THEMES[arenaId].description} · 5v5 / Latihan</p>
+            <p className="text-[10px] text-slate-400">Online: Oasis of Light</p>
+          </div>
           {/* Primary Play CTAs */}
           <div className="flex flex-col gap-2">
             <button
