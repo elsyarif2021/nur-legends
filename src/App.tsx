@@ -44,8 +44,31 @@ function getInitialInviteRoomCode(): string | null {
   return null;
 }
 
+
+const NARRATOR_GUIDE = 'Assalamualaikum, Penjaga Cahaya! Selamat datang di Nur Legends. Pilih pahlawanmu di lobi. Jika baru bermain, mulailah dengan mode latihan. Gunakan joystick atau tombol arah untuk bergerak, dan tombol serangan serta skill untuk bertarung. Lindungi menara timmu dan hancurkan Inti Cahaya lawan. Bermainlah dengan sabar, sportif, dan saling membantu.';
+
+function speakGuide(message: string, volume: number): void {
+  if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const speech = new SpeechSynthesisUtterance(message);
+    speech.lang = 'id-ID';
+    speech.rate = 0.92;
+    speech.volume = Math.max(0, Math.min(1, volume));
+    const voice = window.speechSynthesis.getVoices().find(v => v.lang.toLowerCase().startsWith('id'));
+    if (voice) speech.voice = voice;
+    window.speechSynthesis.speak(speech);
+  } catch { /* Text guide remains available. */ }
+}
+
+function stopGuide(): void {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
 export default function App() {
   const [progress, setProgress] = useState<PlayerProgress>(() => loadPlayerProgress());
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideEnabled, setGuideEnabled] = useState(true);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(
     () => !getInitialInviteRoomCode()
@@ -77,6 +100,17 @@ export default function App() {
     }, 350);
     return () => window.clearTimeout(timer);
   }, [authUser, progress]);
+
+  useEffect(() => {
+    if (progress.settings.muted || !guideEnabled || screen === 'BATTLE') stopGuide();
+  }, [progress.settings.muted, guideEnabled, screen]);
+
+  useEffect(() => () => stopGuide(), []);
+
+  const openGuide = (settings = progress.settings) => {
+    setGuideOpen(true);
+    if (guideEnabled && !settings.muted) speakGuide(NARRATOR_GUIDE, settings.volume);
+  };
 
   const handleSelectHero = (heroId: HeroId) => {
     setProgress((prev) => {
@@ -228,6 +262,7 @@ export default function App() {
   ) => {
     setAuthUser(user);
     setAuthModalOpen(false);
+    openGuide(serverProgress?.settings ?? progress.settings);
     if (serverProgress) {
       const def = createDefaultProgress();
       const merged: PlayerProgress = {
@@ -262,6 +297,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    stopGuide();
+    setGuideOpen(false);
     void authClient.logout();
     setAuthUser(null);
     setAuthModalOpen(true);
@@ -287,12 +324,30 @@ export default function App() {
             onLogout={handleLogout}
             onClearInitialRoomCode={handleClearInitialRoomCode}
           />
+          {!authModalOpen && (
+            <div className="fixed bottom-3 right-3 z-40">
+              <button type="button" className="rounded-full bg-slate-900 border border-amber-400/60 px-3 py-2 text-xs text-amber-200 shadow-lg" onClick={() => openGuide()}>Panduan Narator</button>
+            </div>
+          )}
+          {guideOpen && !authModalOpen && (
+            <div role="dialog" aria-modal="true" aria-labelledby="guide-title" className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4">
+              <div className="w-full max-w-md rounded-2xl border border-amber-500/60 bg-slate-950 p-5 shadow-xl">
+                <h2 id="guide-title" className="text-lg font-bold text-amber-300">Narator Penjaga Cahaya</h2>
+                <p className="mt-3 text-sm leading-relaxed text-slate-200">{NARRATOR_GUIDE}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" disabled={!guideEnabled || progress.settings.muted} className="rounded bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50" onClick={() => speakGuide(NARRATOR_GUIDE, progress.settings.volume)}>Putar suara</button>
+                  <button type="button" className="rounded bg-slate-800 px-3 py-2 text-sm" onClick={() => { stopGuide(); setGuideEnabled(!guideEnabled); }}>{guideEnabled ? 'Nonaktifkan narator' : 'Aktifkan narator'}</button>
+                  <button type="button" className="rounded bg-emerald-700 px-3 py-2 text-sm" onClick={() => { stopGuide(); setGuideOpen(false); }}>Lanjut bermain</button>
+                </div>
+              </div>
+            </div>
+          )}
           {authModalOpen && (
             <AuthModal
               currentProgress={progress}
               allowDismiss
               onAuthenticated={handleAuthenticated}
-              onContinueGuest={() => setAuthModalOpen(false)}
+              onContinueGuest={() => { setAuthModalOpen(false); openGuide(); }}
             />
           )}
         </>
