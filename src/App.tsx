@@ -49,7 +49,7 @@ function getInitialInviteRoomCode(): string | null {
 const NARRATOR_GUIDE = 'Assalamualaikum, Penjaga Cahaya! Selamat datang di Nur Legends. Pilih pahlawanmu di lobi. Jika baru bermain, mulailah dengan mode latihan. Gunakan joystick atau tombol arah untuk bergerak, dan tombol serangan serta skill untuk bertarung. Lindungi menara timmu dan hancurkan Inti Cahaya lawan. Bermainlah dengan sabar, sportif, dan saling membantu.';
 
 type NarratorLanguage = 'id-ID' | 'en-US';
-const ENGLISH_GUIDE = 'Assalamualaikum, Guardian of Light! Welcome to Nur Legends, Guardians of Light. Choose your hero in the lobby. If you are new to the game, start with training mode. Use the joystick or arrow keys to move, and the attack and skill buttons to fight. Defend your team's towers and destroy the enemy Light Core. Play with patience, sportsmanship, and teamwork. May your adventure be filled with courage and wisdom!';
+const ENGLISH_GUIDE = "Assalamualaikum, Guardian of Light! Welcome to Nur Legends, Guardians of Light. Choose your hero in the lobby. If you are new to the game, start with training mode. Use the joystick or arrow keys to move, and the attack and skill buttons to fight. Defend your team's towers and destroy the enemy Light Core. Play with patience, sportsmanship, and teamwork. May your adventure be filled with courage and wisdom!";
 const guideText = (language: NarratorLanguage) => language === 'en-US' ? ENGLISH_GUIDE : NARRATOR_GUIDE;
 
 function readNarratorLanguage(): NarratorLanguage {
