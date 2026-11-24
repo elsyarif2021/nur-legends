@@ -27,6 +27,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   const [radius, setRadius] = useState(48);
   const maxRadius = radius;
   const frame = useRef<number | null>(null);
+  const pendingKnob = useRef({ dx: 0, dy: 0 });
   const attackPointer = useRef<number | null>(null);
   const attackTimer = useRef<number | null>(null);
   const [attacking, setAttacking] = useState(false);
@@ -42,6 +43,10 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     const el = zoneRef.current;
     const measure = () => setRadius(Math.max(28, Math.min(54, el.clientWidth * 0.25)));
     measure();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
@@ -102,7 +107,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     const onVisibility = () => { if (document.hidden) onBlur(); };
     window.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', onVisibility);
-    if (!visible) onBlur();
+    onBlur();
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -137,10 +142,10 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     const strength = Math.max(0, (magnitude - 0.1) / 0.9);
     inputBridge.current.moveX = dist > 0 ? (cx - origin.x) / dist * strength : 0;
     inputBridge.current.moveY = dist > 0 ? (cy - origin.y) / dist * strength : 0;
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => {
+    pendingKnob.current = { dx, dy };
+    if (frame.current === null) frame.current = requestAnimationFrame(() => {
       frame.current = null;
-      setJoyKnob({ dx, dy });
+      setJoyKnob(pendingKnob.current);
     });
   };
 
@@ -334,7 +339,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
                 : idx === 1
                 ? 'left-0 bottom-[48%]'
                 : idx === 2
-                ? 'left-[36%] top-0'
+                ? 'left-[33%] top-0'
                 : 'right-0 top-0';
 
             return (
