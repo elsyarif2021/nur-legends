@@ -124,7 +124,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
   return (
     <div
-      className="relative w-full h-full overflow-hidden flex flex-col justify-between bg-gradient-to-br from-[#0b2338] via-[#071524] to-[#050d17]"
+      className="nur-lobby relative w-full h-full overflow-hidden flex flex-col justify-between bg-gradient-to-br from-[#0b2338] via-[#071524] to-[#050d17]"
       onPointerDown={() => soundEngine.unlock()}
     >
       {/* Animated Fantasy Palace Backdrop */}
@@ -143,7 +143,7 @@ export const Lobby: React.FC<LobbyProps> = ({
       <CornerFiligree className="absolute top-3 right-3 w-8 h-8 rotate-90 pointer-events-none opacity-80" />
 
       {/* TOP STATUS BAR */}
-      <header className="relative z-10 flex items-center justify-between gap-4 px-4 sm:px-7 py-3.5 border-b border-[#d4af37]/20">
+      <header className="nur-lobby-header relative z-10 flex items-center justify-between gap-4 px-4 sm:px-7 py-3.5 border-b border-[#d4af37]/20">
         {/* Player Avatar, Level & XP */}
         <div className="flex items-center gap-3 min-w-0">
           <HeroAvatar heroId={progress.selectedHeroId} size="sm" />
@@ -190,7 +190,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         </div>
 
         {/* Right Utility & Gold Counter */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <div className="nur-lobby-actions flex items-center gap-2 sm:gap-2.5 shrink-0">
           <div className="px-3 py-1.5 rounded-lg bg-[#0b192b]/90 border border-[#d4af37]/40 text-xs sm:text-sm font-mono-num font-bold text-[#fbbf24]">
             {progress.gold} Emas
           </div>
@@ -254,9 +254,9 @@ export const Lobby: React.FC<LobbyProps> = ({
       </header>
 
       {/* MAIN LOBBY CONTENT (16:9 Landscape Stage) */}
-      <main className="relative z-10 flex-1 grid grid-cols-1 md:grid-cols-12 items-center px-4 sm:px-8 py-3 gap-4 overflow-y-auto md:overflow-hidden">
+      <main className="nur-lobby-main relative z-10 min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-12 items-start px-4 sm:px-8 py-3 gap-4 overflow-y-auto">
         {/* Left Navigation Menu */}
-        <nav className="md:col-span-3 flex md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-1 md:pb-0">
+        <nav className="lg:col-span-3 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
           <button
             type="button"
             onClick={() => openModal('heroes')}
@@ -328,7 +328,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         </nav>
 
         {/* Center Hero Pedestal Showcase */}
-        <section className="md:col-span-5 flex flex-col items-center justify-center text-center">
+        <section className="lg:col-span-5 flex flex-col items-center justify-center text-center">
           <div className="relative flex items-center justify-center">
             {/* Radiant Geometric Pedestal */}
             <div className="absolute w-56 h-56 rounded-full bg-radial from-[#14b8a6]/25 via-[#d4af37]/10 to-transparent animate-aura pointer-events-none" />
@@ -351,7 +351,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         </section>
 
         {/* Right Panel: Selected Hero Skills + Primary Play Actions */}
-        <aside className="md:col-span-4 flex flex-col gap-3">
+        <aside className="lg:col-span-4 flex flex-col gap-3">
           <div className="ornate-panel rounded-2xl p-4 space-y-2.5">
             <div className="flex items-center justify-between text-xs font-bold text-[#fbbf24]">
               <span>Kemampuan Pahlawan</span>
@@ -433,7 +433,7 @@ export const Lobby: React.FC<LobbyProps> = ({
       </main>
 
       {/* Subtle Control & Value Footer */}
-      <footer className="relative z-10 px-4 sm:px-8 py-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[11px] text-slate-400">
+      <footer className="nur-lobby-footer relative z-10 px-4 sm:px-8 py-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[11px] text-slate-400">
         <span>Amanah · Sabar · Kejujuran · Persaudaraan</span>
         <span className="hidden sm:inline">
           Laptop/PC: Stick Virtual (Mouse) / WASD · Spasi Serang · Q E R F Skill · B Pulang | Sentuh: Joystick & Tombol

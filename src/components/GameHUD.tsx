@@ -175,12 +175,12 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   return (
     <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between">
       {/* TOP BAR CLUSTER */}
-      <div className="flex items-start justify-between p-2.5 sm:p-4 gap-2">
+      <div className="nur-hud-top flex items-start justify-between p-2.5 sm:p-4 gap-2">
         {/* Top-Left: Live Minimap + Hero Mini Status + Quick-Chat Toast Feed */}
         <div className="flex flex-col items-start gap-2">
           <div className="pointer-events-auto flex items-start gap-2.5">
             {/* Live Minimap */}
-            <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-lg bg-[#081523]/95 border-2 border-[#d4af37]/65 shadow-xl overflow-hidden shrink-0">
+            <div className="nur-minimap relative w-28 h-28 sm:w-36 sm:h-36 rounded-lg bg-[#081523]/95 border-2 border-[#d4af37]/65 shadow-xl overflow-hidden shrink-0">
               {/* Minimap lanes & river vector */}
               <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full opacity-60">
                 <polyline points="11,88 11,11 88,11" fill="none" stroke="#b89c6d" strokeWidth="4" />
@@ -230,7 +230,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
 
             {/* Compact Player Vitals Card */}
-            <div className="hidden md:flex flex-col gap-1.5 px-3 py-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 min-w-[215px]">
+            <div className="nur-hud-stats hidden md:flex flex-col gap-1.5 px-3 py-2 rounded-lg bg-[#081523]/92 border border-[#d4af37]/40 min-w-[215px]">
               <div className="flex items-center gap-2">
                 <HeroAvatar heroId={hud.heroId} size="sm" />
                 <div className="min-w-0">
@@ -307,7 +307,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
 
         {/* Top-Center: Scoreboard Bar + Timer + Target Info + Combat Notices */}
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="nur-hud-score flex flex-col items-center gap-1.5">
           <div className="pointer-events-auto flex items-center gap-3 px-3.5 py-1.5 rounded-lg bg-[#081523]/92 border border-[#d4af37]/45 shadow-lg">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-semibold text-[#38bdf8]">Biru</span>
@@ -374,8 +374,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
 
         {/* Top-Right: Camera/Mic (Online), Quick Chat, Shop, Scoreboard, Tutorial, Mute, Pause */}
-        <div className="pointer-events-auto relative flex flex-col items-end gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="nur-hud-tools pointer-events-auto relative flex flex-col items-end gap-2">
+          <div className="nur-hud-toolrow flex items-center gap-1.5 sm:gap-2">
             {mode === 'online' && (
               <>
                 <button
@@ -594,7 +594,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       </div>
 
       {/* BOTTOM BAR: Mobile compact vitals + desktop hint */}
-      <div className="flex items-end justify-center pb-2 pointer-events-none">
+      <div className="nur-hud-bottom flex items-end justify-center pb-2 pointer-events-none">
         <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 rounded-lg bg-[#081523]/85 border border-[#d4af37]/30 text-[11px] text-slate-300">
           <span>Stick Virtual / WASD Gerak</span>
           <span>·</span>
@@ -633,7 +633,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       {/* ITEM SHOP MODAL */}
       {shopOpen && (
         <div className="pointer-events-auto fixed inset-0 z-40 bg-black/65 flex items-center justify-center p-4">
-          <div className="ornate-panel w-full max-w-2xl rounded-2xl p-5 max-h-[88vh] flex flex-col">
+          <div className="ornate-panel w-full max-w-2xl rounded-2xl p-5 max-h-[88dvh] flex flex-col">
             <div className="flex items-center justify-between border-b border-[#d4af37]/25 pb-3 mb-3">
               <div>
                 <h2 className="font-display text-lg font-bold text-[#fbbf24]">Toko Artefak Cahaya</h2>
@@ -698,7 +698,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       {/* LIVE SCOREBOARD MODAL */}
       {scoreboardOpen && (
         <div className="pointer-events-auto fixed inset-0 z-40 bg-black/65 flex items-center justify-center p-4">
-          <div className="ornate-panel w-full max-w-2xl rounded-2xl p-5 max-h-[86vh] flex flex-col">
+          <div className="ornate-panel w-full max-w-2xl rounded-2xl p-5 max-h-[86dvh] flex flex-col">
             <div className="flex items-center justify-between border-b border-[#d4af37]/25 pb-3 mb-3">
               <h2 className="font-display text-lg font-bold text-[#fbbf24]">Papan Skor Pertandingan</h2>
               <button
@@ -754,7 +754,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       {/* PAUSE MODAL */}
       {pauseOpen && !hud.matchResult && (
         <div className="pointer-events-auto fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="ornate-panel w-full max-w-md rounded-2xl p-6 space-y-5">
+          <div className="ornate-panel w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-[#fbbf24]" />

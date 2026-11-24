@@ -349,7 +349,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-[#07111e] text-[#fdfbf7]">
+    <div className="nur-app w-full overflow-hidden bg-[#07111e] text-[#fdfbf7]">
       <button
         type="button"
         onClick={() => {
@@ -360,7 +360,7 @@ export default function App() {
         }}
         aria-label="Refresh game jika hang"
         title="Refresh game jika hang"
-        className="fixed z-[100] left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-slate-950/95 px-3 min-h-11 text-xs font-bold text-amber-200 shadow-lg touch-manipulation"
+        className="nur-refresh fixed z-[100] left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-amber-400/70 bg-slate-950/95 px-3 min-h-11 text-xs font-bold text-amber-200 shadow-lg touch-manipulation"
         style={{ bottom: 'max(8px, env(safe-area-inset-bottom))' }}
       >
         <span aria-hidden="true" className="text-lg leading-none">↻</span> Refresh
@@ -387,7 +387,7 @@ export default function App() {
             onClearInitialRoomCode={handleClearInitialRoomCode}
           />
           {(
-            <div className={`fixed bottom-3 right-3 z-40 flex flex-wrap justify-end gap-2 ${authModalOpen ? 'hidden' : ''}`}>
+            <div className={`nur-lobby-tools fixed z-40 flex flex-wrap justify-end gap-2 ${authModalOpen ? 'hidden' : ''}`}>
               <InstallGame />
               <button type="button" className="rounded-full bg-slate-900 border border-amber-400/60 px-3 py-2 text-xs text-amber-200 shadow-lg" onClick={() => openGuide()}>Panduan Narator</button>
             </div>

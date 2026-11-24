@@ -177,8 +177,12 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
     const game = new Phaser.Game(config);
     gameRef.current = game;
+    const resize = () => { if (el.clientWidth && el.clientHeight) game.scale.resize(el.clientWidth, el.clientHeight); };
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
+    observer?.observe(el);
 
     return () => {
+      observer?.disconnect();
       game.destroy(true);
       gameRef.current = null;
     };

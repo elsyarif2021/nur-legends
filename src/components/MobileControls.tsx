@@ -244,16 +244,16 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   const skillActions: Array<'s1' | 's2' | 's3' | 'ult'> = ['s1', 's2', 's3', 'ult'];
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex items-end justify-between touch-none" style={{ paddingLeft: "max(12px, env(safe-area-inset-left))", paddingRight: "max(12px, env(safe-area-inset-right))", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-      <button type="button" className="pointer-events-auto absolute left-3 bottom-[48dvh] rounded bg-slate-950/90 border border-amber-500/50 px-2 py-1 text-xs text-amber-200" onClick={() => { stopAttack(); inputBridge.current.moveX = 0; inputBridge.current.moveY = 0; setCustomOpen(v => !v); }}>Kontrol</button>
-      {customOpen && <div className="pointer-events-auto absolute left-3 bottom-[52dvh] z-50 rounded-lg bg-slate-950 border border-amber-500/50 p-3 text-xs text-white space-y-2">
+    <div className="nur-mobile-controls pointer-events-none fixed inset-0 z-20 flex items-end justify-between touch-none" style={{ paddingLeft: "max(12px, env(safe-area-inset-left))", paddingRight: "max(12px, env(safe-area-inset-right))", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+      <button type="button" className="nur-control-toggle pointer-events-auto absolute left-3 bottom-[48dvh] rounded bg-slate-950/90 border border-amber-500/50 px-2 py-1 text-xs text-amber-200" onClick={() => { stopAttack(); inputBridge.current.moveX = 0; inputBridge.current.moveY = 0; setCustomOpen(v => !v); }}>Kontrol</button>
+      {customOpen && <div className="nur-control-panel pointer-events-auto absolute left-3 bottom-[52dvh] z-50 rounded-lg bg-slate-950 border border-amber-500/50 p-3 text-xs text-white space-y-2">
         {(['sensitivity', 'opacity', 'size'] as const).map(key => <label key={key} className="block">{key === 'sensitivity' ? 'Sensitivitas' : key === 'opacity' ? 'Transparansi' : 'Ukuran'} {Math.round(custom[key] * 100)}%<input className="block w-32" type="range" min={key === 'opacity' ? .45 : key === 'size' ? .8 : .6} max={key === 'opacity' ? 1 : key === 'size' ? 1.15 : 1.5} step={.05} value={custom[key]} onChange={e => updateCustom(key, Number(e.target.value))}/></label>)}
         <button type="button" onClick={() => setCustomOpen(false)} className="rounded bg-emerald-700 px-3 py-1">Selesai</button>
       </div>}
       {/* Left Side: Virtual Stick Zone (Mouse/Trackpad on Laptop & PC + Touch on Mobile) */}
       <div
         ref={zoneRef}
-        className="pointer-events-auto relative shrink-0 w-[clamp(112px,26vw,216px)] h-[clamp(112px,26vw,216px)] max-h-[48dvh] touch-none select-none cursor-grab active:cursor-grabbing"
+        className="nur-stick-zone pointer-events-auto relative shrink-0 w-[clamp(112px,26vw,216px)] h-[clamp(112px,26vw,216px)] max-h-[48dvh] touch-none select-none cursor-grab active:cursor-grabbing"
         style={{ opacity: custom.opacity, transform: 'scale(' + custom.size + ')', transformOrigin: 'bottom left' }}
         onPointerDown={handleJoyDown}
         onPointerMove={handleJoyMove}
@@ -265,7 +265,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       >
         {/* Virtual Analog Stick Ring */}
         <div
-          className={`absolute w-[clamp(88px,19vw,144px)] h-[clamp(88px,19vw,144px)] max-h-[42dvh] rounded-full border-2 flex items-center justify-center transition-colors ${
+          className={`nur-stick-ring absolute w-[clamp(88px,19vw,144px)] h-[clamp(88px,19vw,144px)] max-h-[42dvh] rounded-full border-2 flex items-center justify-center transition-colors ${
             isStickActive
               ? 'border-[#fbbf24] bg-[#0b1f33]/75 shadow-[0_0_24px_rgba(251,191,36,0.28)]'
               : 'border-[#d4af37]/50 bg-[#07111e]/55 hover:border-[#d4af37]/80'
@@ -315,7 +315,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
       </div>
 
       {/* Right Side: Recall, Recovery, 3 Skills, Ultimate, Basic Attack */}
-      <div className="pointer-events-none relative flex items-end gap-1 sm:gap-2 touch-none select-none shrink-0" style={{ opacity: custom.opacity, transform: "scale(" + custom.size + ")", transformOrigin: "bottom right" }}>
+      <div className="nur-skill-group pointer-events-none relative flex items-end gap-1 sm:gap-2 touch-none select-none shrink-0" style={{ opacity: custom.opacity, transform: "scale(" + custom.size + ")", transformOrigin: "bottom right" }}>
         {/* Utility Buttons (Recall & Recovery) */}
         <div className="flex flex-col gap-2 mb-1">
           <button
@@ -346,7 +346,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
         </div>
 
         {/* Arc of 3 Skills + Ultimate + Basic Attack */}
-        <div className="relative w-[clamp(142px,32vw,260px)] h-[clamp(136px,27vw,210px)] max-h-[48dvh]">
+        <div className="nur-skill-zone relative w-[clamp(142px,32vw,260px)] h-[clamp(136px,27vw,210px)] max-h-[48dvh]">
           {/* Skill 1 (Bottom-Left of Arc) */}
           {heroDef.skills.map((sk, idx) => {
             const cd = hud.skillCooldowns[idx];
