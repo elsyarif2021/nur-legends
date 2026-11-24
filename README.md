@@ -14,25 +14,25 @@ Gim strategi aksi MOBA **5 vs 5** bertema peradaban fantasi bernuansa Islami dal
 6. **Optimasi Performa**: *Object pooling* untuk proyektil, minion, teks damage melayang, dan partikel cahaya, serta opsi kualitas grafis (`Ringan`, `Sedang`, `Tinggi`).
 7. **Estetika Islami Beretika**: Potret karakter manusia realistis berpakaian sopan nan megah di lobi & koleksi pahlawan, arsitektur istana marmer & taman zamrud, tanpa penggambaran sosok suci, tanpa ayat suci sebagai mantra tempur, dan tanpa kekerasan grafis (pahlawan gugur terurai menjadi partikel cahaya).
 8. **Fitur Edukasi & Akhlak**: Kuis Islami interaktif dengan penjelasan dan ulasan, Misi Harian, serta Pesan Cepat/Emote positif dalam arena (`Terima Kasih!`, `Sabar, Tetap Tenang!`, `Bagus Sekali!`, `Ayo Bersatu!`, `Mohon Bantuan!`, `Tetap Semangat!`).
-9. **Skalabilitas Multipemain**: Abstraksi `IMatchTransport` dan antrean `MatchCommand` untuk mendukung relai WebSocket/WebRTC di fase berikutnya.
+9. **Skalabilitas Multipemain & Akun**: Server Express + WebSocket (`/ws`) untuk pertandingan daring lintas dunia, WebRTC peer-to-peer untuk kamera & mikrofon, serta autentikasi akun berbasis nama, email, dan password dengan sinkronisasi progres ke server.
 
 ---
 
 ## Arsitektur Proyek
 
-- `src/types/game.ts`: Definisi tipe data pahlawan, item, kuis, pesan cepat, HUD snapshot, dan input bridge.
+- `src/types/game.ts`: Definisi tipe data pahlawan, item, kuis, pesan cepat, HUD snapshot, akun pengguna, ruang online, dan input bridge.
 - `src/data/heroes.ts`: 7 pahlawan unik (**Amin**, **Faris**, **Hakim**, **Zahra**, **Zaid**, **Pangeran Mumtaz**, **Putri Aina**) beserta statistik dan 28 skill.
 - `src/data/items.ts`: 8 artefak Toko Item dalam pertandingan.
 - `src/data/quiz.ts`: 12 soal Kuis Akhlak, Adab, dan Pengetahuan Islam beserta penjelasan.
 - `src/data/quickChat.ts`: 6 pesan cepat positif & nilai moral.
 - `src/game/ArenaConfig.ts`: Konfigurasi peta `2800x2800`, 3 jalur, 14 struktur, 2 Penjaga Kristal netral, dan rintangan taman/pilar.
 - `src/game/TextureGenerator.ts`: Generator tekstur prosedural Phaser 3 untuk seluruh entitas & proyektil.
-- `src/game/BattleScene.ts`: Mesin simulasi MOBA Phaser 3, pooling, AI bot FSM, pertempuran, dan gelembung pesan cepat.
-- `server.ts`: Server Express + WebSocket (`/ws`) untuk ruang pertandingan global, matchmaking cepat, relai input/state real-time, dan signaling WebRTC kamera/mikrofon.
+- `src/game/BattleScene.ts`: Mesin simulasi MOBA Phaser 3, pooling, AI bot FSM, pertempuran, gelembung pesan cepat, dan sinkronisasi host/klien daring.
+- `server.ts`: Server Express + WebSocket (`/ws`) untuk autentikasi akun (`/api/auth/*` dengan hashing `scrypt` & token sesi Bearer), penyimpanan progres akun, ruang pertandingan global, matchmaking cepat, relai input/state real-time, dan signaling WebRTC kamera/mikrofon.
 - `src/network/MatchTransport.ts`: Kontrak `IMatchTransport` dan `LocalBotTransport` untuk simulasi offline & antrean perintah.
 - `src/network/OnlineRoomClient.ts` & `src/network/WebRTCManager.ts`: Klien WebSocket multipemain dunia dan manajer WebRTC peer-to-peer kamera/mikrofon + deteksi bicara.
-- `src/components/`: `Lobby.tsx`, `LobbyModals.tsx`, `OnlineLobbyModal.tsx`, `VoiceVideoStrip.tsx`, `BattleArena.tsx`, `GameHUD.tsx`, `MobileControls.tsx`, `HeroAvatar.tsx`, `GeometricOrnament.tsx`.
-- `src/services/`: `storage.ts` (LocalStorage) dan `sound.ts` (Web Audio API synthesizer & suara alam).
+- `src/components/`: `AuthModal.tsx`, `Lobby.tsx`, `LobbyModals.tsx`, `OnlineLobbyModal.tsx`, `VoiceVideoStrip.tsx`, `BattleArena.tsx`, `GameHUD.tsx`, `MobileControls.tsx`, `HeroAvatar.tsx`, `GeometricOrnament.tsx`.
+- `src/services/`: `authClient.ts` (klien login/daftar & sinkronisasi akun di memori), `storage.ts` (LocalStorage), dan `sound.ts` (Web Audio API synthesizer & suara alam).
 
 ---
 
@@ -59,21 +59,24 @@ Gim strategi aksi MOBA **5 vs 5** bertema peradaban fantasi bernuansa Islami dal
 - [x] Sistem Pesan Cepat & Emote positif dalam arena beserta gelembung ucapan di atas pahlawan dan balasan bot sekutu
 - [x] Tutorial awal bagi pemain baru dan synthesizer audio prosedural Web Audio API
 
-### Fase 4 — Optimasi Performa & Skalabilitas Multipemain
+### Fase 4 — Optimasi Performa, Multipemain Dunia, & Akun
 - [x] *Object pooling* untuk proyektil, minion, teks damage melayang, dan partikel cahaya
 - [x] Pengaturan kualitas grafis (`Ringan`, `Sedang`, `Tinggi`)
 - [x] Abstraksi perintah deterministik `IMatchTransport` (`LocalBotTransport`) untuk kesiapan relai jaringan
 - [x] Server relai WebSocket multipemain daring (*online PvP matchmaking*, ruang publik/kode undangan, & obrolan)
 - [x] Komunikasi Kamera & Mikrofon langsung WebRTC peer-to-peer di lobi online & arena pertempuran
-- [ ] Sinkronisasi akun jarak jauh & papan peringkat global persisten
+- [x] Sistem Login & Pendaftaran Akun (Nama, Email, & Password ter-hash di server) beserta sinkronisasi progres akun
+- [ ] Papan peringkat global persisten (*global leaderboard*)
 
 ---
 
 ## Perintah Pengembangan
 
 ```bash
-npm run dev      # Menjalankan server pengembangan Vite pada port 3000
+npm run dev      # Menjalankan server Express + WebSocket + Vite pada port 3000
 npm run lint     # Pemeriksaan tipe TypeScript (tsc --noEmit)
-npm run build    # Kompilasi produksi Vite
+npm run build    # Kompilasi produksi Vite ke folder dist/
+npm start        # Menjalankan server produksi Node.js (server.ts)
 npx tsx src/tests/verifyGameSystems.ts  # Uji integritas sistem & logika gim
 ```
+
