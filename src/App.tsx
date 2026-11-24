@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { InstallGame } from './components/InstallGame';
 import { AuthModal } from './components/AuthModal';
 import { BattleArena } from './components/BattleArena';
 import { Lobby } from './components/Lobby';
@@ -324,8 +325,9 @@ export default function App() {
             onLogout={handleLogout}
             onClearInitialRoomCode={handleClearInitialRoomCode}
           />
-          {!authModalOpen && (
-            <div className="fixed bottom-3 right-3 z-40">
+          {(
+            <div className={`fixed bottom-3 right-3 z-40 flex flex-wrap justify-end gap-2 ${authModalOpen ? 'hidden' : ''}`}>
+              <InstallGame />
               <button type="button" className="rounded-full bg-slate-900 border border-amber-400/60 px-3 py-2 text-xs text-amber-200 shadow-lg" onClick={() => openGuide()}>Panduan Narator</button>
             </div>
           )}
