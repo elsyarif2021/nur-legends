@@ -85,7 +85,7 @@ export function createDefaultProgress(): PlayerProgress {
       volume: 0.65,
       muted: false,
       ambientEnabled: true,
-      quality: 'high',
+      quality: 'auto',
       showTutorialOnStart: true,
     },
     tutorialCompleted: false,

@@ -24,6 +24,7 @@ import { soundEngine } from '../services/sound';
 import {
   BattleInputBridge,
   GameMode,
+  GRAPHICS_QUALITY_OPTIONS,
   GraphicsQuality,
   HudSnapshot,
   OnlinePlayerInfo,
@@ -779,8 +780,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-200">Kualitas Grafis</span>
-                <div className="flex gap-1">
-                  {(['low', 'medium', 'high'] as GraphicsQuality[]).map((q) => (
+                <div className="flex flex-wrap justify-end gap-1">
+                  {(Object.keys(GRAPHICS_QUALITY_OPTIONS) as GraphicsQuality[]).map((q) => (
                     <button
                       key={q}
                       type="button"
@@ -791,7 +792,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                           : 'bg-slate-800 text-slate-300'
                       }`}
                     >
-                      {q === 'low' ? 'Ringan' : q === 'medium' ? 'Sedang' : 'Tinggi'}
+                      {GRAPHICS_QUALITY_OPTIONS[q]}
                     </button>
                   ))}
                 </div>

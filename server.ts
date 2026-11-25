@@ -279,11 +279,12 @@ function sanitizeStoredProgress(
       muted: Boolean(settingsSrc.muted),
       ambientEnabled: settingsSrc.ambientEnabled !== false,
       quality:
+        settingsSrc.quality === 'auto' ||
         settingsSrc.quality === 'low' ||
         settingsSrc.quality === 'medium' ||
         settingsSrc.quality === 'high'
           ? settingsSrc.quality
-          : 'high',
+          : 'auto',
       showTutorialOnStart: settingsSrc.showTutorialOnStart !== false,
     },
     tutorialCompleted: Boolean(src.tutorialCompleted),

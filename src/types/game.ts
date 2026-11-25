@@ -5,7 +5,8 @@ export type HeroRole = 'Tank' | 'Marksman' | 'Mage' | 'Support' | 'Fighter';
 export type GameMode = '5v5' | 'training' | 'online' | 'duel' | '3v3';
 export type BotDifficulty = 'easy' | 'normal' | 'hard' | 'expert' | 'legendary';
 
-export type GraphicsQuality = 'low' | 'medium' | 'high';
+export const GRAPHICS_QUALITY_OPTIONS = { auto: 'Otomatis', low: 'Ringan', medium: 'Sedang', high: 'Tinggi' } as const;
+export type GraphicsQuality = keyof typeof GRAPHICS_QUALITY_OPTIONS;
 
 export type ScreenView = 'LOBBY' | 'BATTLE';
 

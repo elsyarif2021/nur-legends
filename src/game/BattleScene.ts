@@ -1,3 +1,4 @@
+import { AdaptiveGraphics, type RenderQuality } from './AdaptiveGraphics';
 import { BOT_DIFFICULTIES } from './BotDifficulty';
 import type { BotDifficulty } from '../types/game';
 import { ARENA_THEMES, type ArenaId } from './ArenaThemes';
@@ -241,7 +242,8 @@ export interface BattleSceneInitData {
   arenaId?: ArenaId;
   playerHeroId: HeroId;
   mode: GameMode;
-  quality: GraphicsQuality;
+  getQuality: () => GraphicsQuality;
+  onRenderQuality: (quality: RenderQuality) => void;
   inputBridge: BattleInputBridge;
   onHudUpdate: (snapshot: HudSnapshot) => void;
   onMatchEnd: (summary: MatchResultSummary) => void;
@@ -288,7 +290,8 @@ export class BattleScene extends Phaser.Scene {
   private blueKills = 0;
   private redKills = 0;
   private hudEmitTimer = 0;
-  private hitstopTimer = 0;
+  private graphics = new AdaptiveGraphics(false);
+  private renderQuality: RenderQuality = 'high';
   private matchEnded = false;
   private notices: CombatNotice[] = [];
   private noticeCounter = 1;
@@ -335,7 +338,13 @@ export class BattleScene extends Phaser.Scene {
     this.blueKills = 0;
     this.redKills = 0;
     this.hudEmitTimer = 0;
-    this.hitstopTimer = 0;
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    this.graphics = new AdaptiveGraphics(
+      (deviceMemory !== undefined && deviceMemory <= 4) ||
+      (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4)
+    );
+    this.renderQuality = this.graphics.update(this.initData.getQuality());
+    this.initData.onRenderQuality(this.renderQuality);
     this.matchEnded = false;
     this.notices = [];
     this.chatFeed = [];
@@ -1085,16 +1094,17 @@ export class BattleScene extends Phaser.Scene {
     };
   }
 
-  public update(_time: number, rawDeltaMs: number): void {
+  public update(_time: number, deltaMs: number): void {
     if (this.matchEnded) return;
-    if (this.initData.inputBridge.paused) return;
-
-    const dt = Math.min(rawDeltaMs / 1000, 0.05);
-
-    if (this.hitstopTimer > 0) {
-      this.hitstopTimer -= dt;
-      return;
+    const paused = this.initData.inputBridge.paused;
+    const quality = this.graphics.update(this.initData.getQuality(), paused || document.hidden ? 0 : this.game.loop.rawDelta);
+    if (quality !== this.renderQuality) {
+      this.renderQuality = quality;
+      this.initData.onRenderQuality(quality);
     }
+    if (paused) return;
+
+    const dt = Math.min(deltaMs / 1000, 0.05);
 
     if (this.isOnlineClient) {
       this.runOnlineClientTick(dt);
@@ -1803,14 +1813,15 @@ export class BattleScene extends Phaser.Scene {
     const dmg = hero.ad * (hero.guardianBuffTimer > 0 ? 1.15 : 1);
     if (hero.isHuman) soundEngine.playAttack(hero.heroDef.stats.isRanged);
 
-    // Quick squash-and-stretch punch on sprite
-    this.tweens.add({
-      targets: hero.sprite,
-      scaleX: 1.16,
-      scaleY: 0.88,
-      duration: 75,
-      yoyo: true,
-    });
+    if (this.renderQuality === 'high' && !this.tweens.isTweening(hero.sprite)) {
+      this.tweens.add({
+        targets: hero.sprite,
+        scaleX: hero.sprite.scaleX * 1.16,
+        scaleY: hero.sprite.scaleY * 0.88,
+        duration: 75,
+        yoyo: true,
+      });
+    }
 
     if (hero.heroDef.stats.isRanged) {
       const tex =
@@ -2705,8 +2716,7 @@ export class BattleScene extends Phaser.Scene {
       effectiveKiller.kills += 1;
       effectiveKiller.gold += 200;
       this.grantHeroXp(effectiveKiller, 110);
-      if (effectiveKiller.isHuman) {
-        this.hitstopTimer = 0.04;
+      if (effectiveKiller.isHuman && this.renderQuality === 'high') {
         this.cameras.main.shake(120, 0.004);
       }
       this.pushNotice(
@@ -2977,7 +2987,9 @@ export class BattleScene extends Phaser.Scene {
       h.hpBarBg.setPosition(h.x, h.y - 42);
       h.hpBarFill.setPosition(h.x - 29, h.y - 43).setDisplaySize(58 * Math.max(0, h.hp / h.maxHp), 5);
       h.manaBarFill.setPosition(h.x - 29, h.y - 39).setDisplaySize(58 * Math.max(0, h.mana / h.maxMana), 2.5);
-      h.nameText.setPosition(h.x, h.y - 54).setText(`${h.name} Lv.${h.level}`);
+      const label = `${h.name} Lv.${h.level}`;
+      h.nameText.setPosition(h.x, h.y - 54);
+      if (h.nameText.text !== label) h.nameText.setText(label);
       if (h.bubbleTimer > 0) {
         h.bubbleBg.setPosition(h.x, h.y - 78);
         h.bubbleText.setPosition(h.x, h.y - 78);
@@ -3071,7 +3083,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private spawnFloatingText(x: number, y: number, msg: string, color: string): void {
-    if (this.initData.quality === 'low') return;
+    if (this.renderQuality === 'low') return;
     const slot = this.floatingTextPool.find((ft) => !ft.active);
     if (!slot) return;
     slot.active = true;
@@ -3090,15 +3102,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private spawnRingPulse(x: number, y: number, maxR: number, color: number, durationSec: number): void {
-    const circle = this.add.circle(x, y, 16, color, 0.2).setStrokeStyle(3, color, 0.9).setDepth(12);
+    const circle = this.add.circle(x, y, maxR, color, 0.2).setStrokeStyle(3, color, 0.9).setScale(16 / maxR).setDepth(12);
     this.tweens.add({
       targets: circle,
-      radius: maxR,
+      scale: 1,
       alpha: 0,
       duration: durationSec * 1000,
-      onUpdate: () => {
-        circle.setStrokeStyle(3, color, circle.alpha);
-      },
       onComplete: () => circle.destroy(),
     });
     if (this.isOnlineHost) {
@@ -3138,7 +3147,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private spawnLightBurst(x: number, y: number, color: number, count: number): void {
-    const actualCount = this.initData.quality === 'low' ? Math.ceil(count / 2) : count;
+    const fraction = this.renderQuality === 'high' ? 1 : this.renderQuality === 'medium' ? 0.6 : 0.25;
+    const actualCount = Math.ceil(count * fraction);
     for (let i = 0; i < actualCount; i++) {
       const slot = this.lightParticlePool.find((lp) => !lp.active);
       if (!slot) break;
@@ -3162,7 +3172,7 @@ export class BattleScene extends Phaser.Scene {
         x: Math.round(x),
         y: Math.round(y),
         color,
-        count: actualCount,
+        count,
       });
     }
   }

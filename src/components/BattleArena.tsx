@@ -49,6 +49,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   onExitToLobby,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const qualityRef = useRef(settings.quality);
+  useEffect(() => { qualityRef.current = settings.quality; }, [settings.quality]);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [matchKey, setMatchKey] = useState(0);
   const previousHud = useRef<HudSnapshot | null>(null);
@@ -149,7 +151,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       arenaId,
       playerHeroId: heroId,
       mode,
-      quality: settings.quality,
+      getQuality: () => qualityRef.current,
+      onRenderQuality: quality => { el.dataset.graphicsQuality = quality; },
       inputBridge: inputBridge.current,
       onlineRoom,
       onlinePlayerId,
@@ -163,14 +166,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       width: el.clientWidth || window.innerWidth,
       height: el.clientHeight || window.innerHeight,
       backgroundColor: '#0b1e19',
+      fps: { limit: 60 },
       scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
-      fps: {
-        target: settings.quality === 'low' ? 30 : 60,
-        limit: settings.quality === 'low' ? 30 : 60,
-        forceSetTimeOut: false,
       },
       callbacks: {
         postBoot: (bootedGame) => {

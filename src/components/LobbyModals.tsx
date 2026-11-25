@@ -19,6 +19,7 @@ import { soundEngine } from '../services/sound';
 import {
   BattleRecord,
   DailyMission,
+  GRAPHICS_QUALITY_OPTIONS,
   GraphicsQuality,
   HeroId,
   LeaderboardEntry,
@@ -588,8 +589,8 @@ export const SettingsModal: React.FC<{
 
           <div className="flex items-center justify-between">
             <span className="text-slate-200">Kualitas Grafis</span>
-            <div className="flex gap-1">
-              {(['low', 'medium', 'high'] as GraphicsQuality[]).map((q) => (
+            <div className="flex flex-wrap justify-end gap-1">
+              {(Object.keys(GRAPHICS_QUALITY_OPTIONS) as GraphicsQuality[]).map((q) => (
                 <button
                   key={q}
                   type="button"
@@ -600,7 +601,7 @@ export const SettingsModal: React.FC<{
                       : 'bg-slate-800 text-slate-300'
                   }`}
                 >
-                  {q === 'low' ? 'Ringan' : q === 'medium' ? 'Sedang' : 'Tinggi'}
+                  {GRAPHICS_QUALITY_OPTIONS[q]}
                 </button>
               ))}
             </div>
