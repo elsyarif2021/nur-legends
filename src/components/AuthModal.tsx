@@ -101,18 +101,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="ornate-panel w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl p-5 sm:p-6 space-y-4">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="auth-title" className="nur-auth-panel ornate-panel w-full max-w-3xl max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-2xl p-4 space-y-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-[#d4af37]/25 pb-3">
           <div className="flex items-center gap-2.5">
             <StarEmblem className="w-8 h-8 shrink-0" />
             <div>
-              <h2 className="font-display text-lg sm:text-xl font-extrabold text-[#fbbf24]">
+              <h2 id="auth-title" className="font-display text-lg sm:text-xl font-extrabold text-[#fbbf24]">
                 Akun Penjaga Cahaya
               </h2>
               <p className="text-xs text-slate-300">
-                Masuk atau buat akun dengan nama, email, &amp; password
+                Masuk atau daftar untuk menyimpan progres.
               </p>
             </div>
           </div>
@@ -175,58 +175,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         )}
 
         {/* Form */}
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+        <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3 min-[480px]:grid-cols-2">
           {/* Nama */}
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-200">
+            <label htmlFor="auth-name" className="block text-xs font-semibold text-slate-200">
               {tab === 'register' ? 'Nama Lengkap / Panggilan' : 'Nama Pemain (Opsional)'}
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
+                id="auth-name" autoComplete="nickname"
                 type="text"
                 maxLength={24}
                 required={tab === 'register'}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={tab === 'register' ? 'Masukkan nama Anda' : 'Kosongkan untuk pakai nama tersimpan'}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
+                className="min-w-0 w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
               />
             </div>
           </div>
 
           {/* Email */}
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-200">Alamat Email</label>
+            <label htmlFor="auth-email" className="block text-xs font-semibold text-slate-200">Alamat Email</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
+                id="auth-email" autoComplete="email"
                 type="email"
                 maxLength={120}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="contoh: penjaga@email.com"
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
+                className="min-w-0 w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
               />
             </div>
           </div>
 
           {/* Password */}
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-200">
+            <label htmlFor="auth-password" className="block text-xs font-semibold text-slate-200">
               {tab === 'register' ? 'Buat Password (minimal 6 karakter)' : 'Password'}
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
+                id="auth-password" autoComplete={tab === 'register' ? 'new-password' : 'current-password'}
                 type={showPassword ? 'text' : 'password'}
                 maxLength={128}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={tab === 'register' ? 'Buat password yang kuat' : 'Masukkan password Anda'}
-                className="w-full pl-9 pr-10 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
+                className="min-w-0 w-full pl-9 pr-10 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
               />
               <button
                 type="button"
@@ -242,19 +245,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* Confirm Password on Register */}
           {tab === 'register' && (
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-200">
+              <label htmlFor="auth-confirm" className="block text-xs font-semibold text-slate-200">
                 Ulangi Password
               </label>
               <div className="relative">
                 <ShieldCheck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
+                  id="auth-confirm" autoComplete="new-password"
                   type={showPassword ? 'text' : 'password'}
                   maxLength={128}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Ketik ulang password"
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
+                  className="min-w-0 w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4af37]"
                 />
               </div>
             </div>
@@ -263,7 +267,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f59e0b] to-[#d97706] hover:brightness-110 disabled:opacity-60 text-[#07111e] font-display font-extrabold text-sm tracking-wide shadow-lg transition-transform active:scale-[0.99]"
+            className="min-[480px]:col-span-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f59e0b] to-[#d97706] hover:brightness-110 disabled:opacity-60 text-[#07111e] font-display font-extrabold text-sm tracking-wide shadow-lg transition-transform active:scale-[0.99]"
           >
             {loading
               ? 'Memproses...'

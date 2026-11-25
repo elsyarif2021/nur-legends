@@ -271,6 +271,36 @@ export const Lobby: React.FC<LobbyProps> = ({
 
       {/* MAIN LOBBY CONTENT (16:9 Landscape Stage) */}
       <main className="nur-lobby-main relative z-10 min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-12 items-start px-4 sm:px-8 py-3 gap-4 overflow-y-auto">
+        <section aria-labelledby="play-heading" className="nur-play-modes col-span-full rounded-2xl border border-amber-400/30 bg-[#071a23]/95 p-3 sm:p-4">
+          <h2 id="play-heading" className="mb-2 font-display text-base font-bold text-amber-100 sm:text-lg">Pilih Mode</h2>
+          <div className="grid grid-cols-2 gap-2 min-[580px]:grid-cols-5">
+            {([
+              ['training', 'Latihan', Compass],
+              ['duel', 'Duel 1v1', Swords],
+              ['3v3', 'Battle 3v3', Users],
+              ['5v5', 'Battle 5v5', Swords],
+              ['online', 'Multipemain', Globe],
+            ] as const).map(([mode, label, Icon]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  if (mode === 'online') {
+                    openModal('online');
+                    return;
+                  }
+                  soundEngine.unlock();
+                  soundEngine.playClick();
+                  onStartMatch(mode);
+                }}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 ${mode === 'training' ? 'border-amber-200 bg-amber-300 text-slate-950 hover:bg-amber-200' : 'border-teal-700 bg-[#0c3438] text-teal-50 hover:bg-teal-800'} ${mode === 'online' ? 'col-span-2 min-[580px]:col-span-1' : ''}`}
+              >
+                <Icon aria-hidden="true" className="size-4 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
         {/* Left Navigation Menu */}
         <nav aria-label="Menu lobi" className="relative z-10 min-h-14 lg:col-span-3 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
           <button
@@ -374,57 +404,59 @@ export const Lobby: React.FC<LobbyProps> = ({
           </div>
         </section>
 
-        {/* Right Panel: Selected Hero Skills + Primary Play Actions */}
+        {/* Match preparation and rewards */}
         <aside className="lg:col-span-4 flex flex-col gap-3">
-          <div className="ornate-panel rounded-2xl p-4 space-y-2.5">
-            <div className="flex items-center justify-between text-xs font-bold text-[#fbbf24]">
-              <span>Kemampuan Pahlawan</span>
-              <button
-                type="button"
-                onClick={() => openModal('heroes')}
-                className="text-teal-300 hover:text-teal-200 underline"
-              >
-                Ganti Pahlawan
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {selectedHero.skills.map((sk, idx) => (
-                <div
-                  key={sk.id}
-                  className="p-2 rounded-lg bg-slate-900/75 border border-slate-800 flex items-center gap-2"
+          <details className="ornate-panel rounded-xl p-3">
+            <summary className="cursor-pointer text-sm font-bold text-amber-200">Kemampuan Pahlawan</summary>
+            <div className="mt-3 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-[#fbbf24]">
+                <button
+                  type="button"
+                  onClick={() => openModal('heroes')}
+                  className="text-teal-300 hover:text-teal-200 underline"
                 >
-                  <div className="w-8 h-8 rounded bg-[#0c2136] border border-[#14b8a6]/40 flex items-center justify-center text-[#5eead4] shrink-0">
-                    <SkillIcon type={sk.iconType} className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-bold text-white truncate">{sk.name}</div>
-                    <div className="text-[10px] text-slate-400">
-                      {idx === 3 ? 'Ultimate (F)' : `Skill ${idx + 1} (${sk.keyLabel})`}
+                  Ganti Pahlawan
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {selectedHero.skills.map((sk, idx) => (
+                  <div
+                    key={sk.id}
+                    className="p-2 rounded-lg bg-slate-900/75 border border-slate-800 flex items-center gap-2"
+                  >
+                    <div className="w-8 h-8 rounded bg-[#0c2136] border border-[#14b8a6]/40 flex items-center justify-center text-[#5eead4] shrink-0">
+                      <SkillIcon type={sk.iconType} className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-white truncate">{sk.name}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {idx === 3 ? 'Ultimate (F)' : `Skill ${idx + 1} (${sk.keyLabel})`}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          </details>
 
-          {/* Arena selector for local matches */}
-          <div className="rounded-xl border border-amber-500/40 bg-[#07111e]/90 p-2">
-            <label htmlFor="arena-select" className="block text-xs font-bold text-amber-200 mb-1">Arena Pertempuran</label>
-            <select id="arena-select" value={arenaId} onChange={e => onSelectArena(e.target.value as ArenaId)} className="w-full min-h-10 rounded-lg bg-slate-900 text-white border border-slate-600 px-2 text-sm">
-              {(Object.keys(ARENA_THEMES) as ArenaId[]).map(id => <option key={id} value={id}>{ARENA_THEMES[id].name}</option>)}
-            </select>
-            <p className="mt-1 text-[11px] text-slate-300">{ARENA_THEMES[arenaId].description} · 5v5 / Latihan</p>
-            <p className="text-[10px] text-slate-400">Online: Oasis of Light</p>
-          </div>
-          <label className="block text-xs text-amber-200">Kesulitan Bot
-            <select value={difficulty} onChange={e => onSelectDifficulty(e.target.value as BotDifficulty)} className="block w-full min-h-10 rounded-lg border border-slate-600 bg-slate-900 text-white px-2">
-              {(Object.keys(BOT_DIFFICULTIES) as BotDifficulty[]).map(id => <option key={id} value={id}>{BOT_DIFFICULTIES[id].label}</option>)}
-            </select>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => { soundEngine.unlock(); onStartMatch('duel'); }} className="min-h-11 rounded-xl bg-slate-800 border border-amber-500/50 text-amber-200 font-bold text-xs">Duel 1v1</button>
-            <button type="button" onClick={() => { soundEngine.unlock(); onStartMatch('3v3'); }} className="min-h-11 rounded-xl bg-slate-800 border border-amber-500/50 text-amber-200 font-bold text-xs">Battle 3v3</button>
-          </div>
+          <details className="rounded-xl border border-amber-500/40 bg-slate-950/80 p-3">
+            <summary className="cursor-pointer text-sm font-bold text-amber-200">Arena &amp; Kesulitan Bot</summary>
+            <div className="mt-3 space-y-2">
+              <div className="rounded-xl border border-amber-500/40 bg-[#07111e]/90 p-2">
+                <label htmlFor="arena-select" className="block text-xs font-bold text-amber-200 mb-1">Arena Pertempuran</label>
+                <select id="arena-select" value={arenaId} onChange={e => onSelectArena(e.target.value as ArenaId)} className="w-full min-h-10 rounded-lg bg-slate-900 text-white border border-slate-600 px-2 text-sm">
+                  {(Object.keys(ARENA_THEMES) as ArenaId[]).map(id => <option key={id} value={id}>{ARENA_THEMES[id].name}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-300">{ARENA_THEMES[arenaId].description} · 5v5 / Latihan</p>
+                <p className="text-[10px] text-slate-400">Online: Oasis of Light</p>
+              </div>
+              <label className="block text-xs text-amber-200">Kesulitan Bot
+                <select value={difficulty} onChange={e => onSelectDifficulty(e.target.value as BotDifficulty)} className="block w-full min-h-10 rounded-lg border border-slate-600 bg-slate-900 text-white px-2">
+                  {(Object.keys(BOT_DIFFICULTIES) as BotDifficulty[]).map(id => <option key={id} value={id}>{BOT_DIFFICULTIES[id].label}</option>)}
+                </select>
+              </label>
+            </div>
+          </details>
           <details className="rounded-xl border border-amber-500/40 bg-slate-950/80 p-2 text-xs text-slate-200">
             <summary className="cursor-pointer font-bold text-amber-200">Mastery, Medali & Hadiah Harian</summary>
             <p className="mt-2">Mastery {selectedHero.name}: {progress.heroMastery?.[selectedHero.id] ?? 0} XP</p>
@@ -433,43 +465,6 @@ export const Lobby: React.FC<LobbyProps> = ({
             <button type="button" disabled={progress.lastLoginRewardDate === new Date().toISOString().slice(0,10)} onClick={onClaimLoginReward} className="mt-2 w-full min-h-10 rounded bg-emerald-700 disabled:bg-slate-700 font-bold">{progress.lastLoginRewardDate === new Date().toISOString().slice(0,10) ? 'Hadiah sudah diklaim' : 'Klaim 100 Emas + 50 XP'}</button>
             <p className="mt-1 text-slate-400">Progres kasual, bukan ranked. Reset hadiah pukul 00:00 UTC.</p>
           </details>
-          {/* Primary Play CTAs */}
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.unlock();
-                soundEngine.playSkill(true);
-                onStartMatch('5v5');
-              }}
-              className="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#f59e0b] to-[#d97706] hover:brightness-110 text-[#07111e] font-display font-extrabold text-base sm:text-lg tracking-wide shadow-xl flex items-center justify-center gap-2.5 transition-transform active:scale-[0.98]"
-            >
-              <Swords className="w-5 h-5" />
-              MULAI PERTANDINGAN 5 vs 5
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openModal('online')}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.99]"
-            >
-              <Globe className="w-4 h-4" />
-              Main Online Dunia (Kamera &amp; Mikrofon)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.unlock();
-                soundEngine.playClick();
-                onStartMatch('training');
-              }}
-              className="w-full py-2 px-4 rounded-xl bg-[#0d283d]/90 hover:bg-[#133854] border border-[#14b8a6]/50 text-[#a7f3d0] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors"
-            >
-              <Compass className="w-4 h-4" />
-              Mode Latihan (1 vs 1 + Minion)
-            </button>
-          </div>
         </aside>
       </main>
 
