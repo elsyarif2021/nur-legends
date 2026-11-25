@@ -14,6 +14,8 @@ import {
   Users,
   Video,
   VideoOff,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 import { onlineClient, OnlineConnectionStatus } from '../network/OnlineRoomClient';
@@ -148,20 +150,20 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-6">
-      <div className="ornate-panel w-full max-w-5xl rounded-2xl p-4 sm:p-6 max-h-[92vh] flex flex-col gap-4">
+      <div className="ornate-panel w-full max-w-5xl rounded-2xl p-3 sm:p-5 max-h-[92dvh] flex flex-col gap-3">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d4af37]/25 pb-3">
           <div className="flex items-center gap-2.5">
             <StarEmblem className="w-7 h-7" />
             <div>
               <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbbf24]">
-                Arena Online Dunia (PvP Global)
+                Lobi Multipemain
               </h2>
               <div className="text-xs text-slate-300 flex items-center gap-2">
                 <Globe className="w-3.5 h-3.5 text-teal-300" />
                 <span>
                   {status === 'connected'
-                    ? 'Terhubung ke Server Multipemain Global'
+                    ? 'Terhubung'
                     : status === 'connecting'
                     ? 'Menyambungkan ke server...'
                     : 'Koneksi terputus'}
@@ -170,7 +172,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Local Camera & Mic Quick Controls */}
             <button
               type="button"
@@ -200,6 +202,16 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
             <button
               type="button"
+              aria-pressed={media.speakerOn}
+              onClick={() => webrtcManager.setSpeakerEnabled(!media.speakerOn)}
+              className="flex min-h-9 items-center gap-1.5 rounded-lg border border-teal-700 bg-slate-900 px-2 text-xs font-bold text-teal-100"
+            >
+              {media.speakerOn ? <Volume2 aria-hidden="true" className="size-4" /> : <VolumeX aria-hidden="true" className="size-4" />}
+              {media.speakerOn ? 'Speaker Aktif' : 'Speaker Bisukan'}
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 soundEngine.playClick();
                 if (room) onlineClient.leaveRoom();
@@ -214,6 +226,12 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
           </div>
         </div>
 
+        <label className="flex flex-wrap items-center gap-2 text-xs text-slate-200">
+          Volume suara pemain
+          <input type="range" min={0} max={100} value={Math.round(media.speakerVolume * 100)} onChange={event => webrtcManager.setSpeakerVolume(Number(event.target.value) / 100)} className="w-28 accent-emerald-400" />
+          <span aria-hidden="true">{Math.round(media.speakerVolume * 100)}%</span>
+        </label>
+
         {(errorMsg || media.error) && (
           <div className="px-3.5 py-2 rounded-xl bg-rose-950/70 border border-rose-500/50 text-xs text-rose-200">
             {errorMsg || media.error}
@@ -222,10 +240,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
         {status === 'disconnected' && !errorMsg && (
           <div className="px-3.5 py-2 rounded-xl bg-amber-950/70 border border-amber-500/45 text-xs text-amber-200">
-            Belum terhubung ke server WebSocket multipemain. Jika aplikasi dijalankan di Vercel statis, pastikan variabel{' '}
-            <code className="font-mono-num text-amber-100">VITE_WS_URL</code> /{' '}
-            <code className="font-mono-num text-amber-100">VITE_API_URL</code> mengarah ke server backend Node.js Anda. Mode offline{' '}
-            <strong>5 vs 5</strong> dan <strong>Latihan</strong> tetap dapat dimainkan sepenuhnya.
+            Lobi belum terhubung. Tunggu koneksi pulih atau pilih mode offline dari lobi utama.
           </div>
         )}
 
@@ -259,69 +274,27 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
             )}
             {/* Left Column: Profile + Camera Preview + Quick Match + Create/Join */}
             <div className="lg:col-span-5 flex flex-col gap-3">
-              {/* Nickname & Camera/Mic Studio Preview */}
-              <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`relative w-24 h-20 rounded-xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 ${
-                      media.speakingIds['local']
-                        ? 'border-emerald-400 ring-2 ring-emerald-400/50'
-                        : 'border-[#d4af37]/40'
-                    }`}
-                  >
-                    {media.camOn && media.localStream && media.localStream.getVideoTracks().length > 0 ? (
-                      <StreamVideo
-                        stream={media.localStream}
-                        muted
-                        mirrored
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <HeroAvatar heroId={selectedHeroId} size="md" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <label className="block text-[11px] font-semibold text-slate-300">
-                      Nama Pemain Online
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={20}
-                      value={playerName}
-                      onChange={(e) => onChangePlayerName(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-[#d4af37]"
-                      placeholder="Nama Anda"
-                    />
-                    <div className="text-[11px] text-teal-300 truncate">
-                      Pahlawan: {HEROES[selectedHeroId].name}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Match Global CTA */}
-                <button
-                  type="button"
-                  disabled={status !== 'connected'}
-                  onClick={() => {
-                    soundEngine.playSkill(true);
-                    onlineClient.quickMatch({
-                      playerName,
-                      heroId: selectedHeroId,
-                      camOn: media.camOn,
-                      micOn: media.micOn,
-                    });
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg"
-                >
-                  <Globe className="w-4 h-4" />
-                  Cari Pertandingan Global (Cepat)
-                </button>
-              </div>
-
+              {/* Quick Match Global CTA */}
+              <button
+                type="button"
+                disabled={status !== 'connected'}
+                onClick={() => {
+                  soundEngine.playSkill(true);
+                  onlineClient.quickMatch({
+                    playerName,
+                    heroId: selectedHeroId,
+                    camOn: media.camOn,
+                    micOn: media.micOn,
+                  });
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg"
+              >
+                <Globe className="w-4 h-4" />
+                Cari Pertandingan Cepat
+              </button>
               {/* Create Room */}
               <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800 space-y-2.5">
-                <div className="text-xs font-bold text-[#fbbf24]">Buat Ruang Pertandingan Baru</div>
+                <div className="text-xs font-bold text-[#fbbf24]">Buat Ruang Custom</div>
                 <input
                   type="text"
                   maxLength={32}
@@ -340,7 +313,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                         isPublic ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-300'
                       }`}
                     >
-                      Publik Dunia
+                      Publik
                     </button>
                     <button
                       type="button"
@@ -375,7 +348,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
               {/* Join by Code */}
               <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800 space-y-2">
-                <div className="text-xs font-bold text-slate-200">Gabung dengan Kode Ruang</div>
+                <div className="text-xs font-bold text-slate-200">Gabung dengan Kode</div>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -395,6 +368,49 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                   </button>
                 </div>
               </div>
+              {/* Nickname & Camera/Mic Studio Preview */}
+              <details className="rounded-xl border border-slate-800 bg-slate-900/75 p-3">
+                <summary className="cursor-pointer text-sm font-bold text-teal-100">Profil &amp; Pratinjau Kamera</summary>
+                <div className="mt-3 flex items-center gap-3">
+                  <div
+                    className={`relative w-24 h-20 rounded-xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 ${
+                      media.speakingIds['local']
+                        ? 'border-emerald-400 ring-2 ring-emerald-400/50'
+                        : 'border-[#d4af37]/40'
+                    }`}
+                  >
+                    {media.camOn && media.localStream && media.localStream.getVideoTracks().length > 0 ? (
+                      <StreamVideo
+                        stream={media.localStream}
+                        muted
+                        mirrored
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <HeroAvatar heroId={selectedHeroId} size="md" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <label htmlFor="online-player-name" className="block text-[11px] font-semibold text-slate-300">
+                      Nama Pemain Online
+                    </label>
+                    <input
+                      type="text"
+                      id="online-player-name"
+                      maxLength={20}
+                      value={playerName}
+                      onChange={(e) => onChangePlayerName(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-[#d4af37]"
+                      placeholder="Nama Anda"
+                    />
+                    <div className="text-[11px] text-teal-300 truncate">
+                      Pahlawan: {HEROES[selectedHeroId].name}
+                    </div>
+                  </div>
+                </div>
+
+              </details>
             </div>
 
             {/* Right Column: Live Global Public Rooms */}
@@ -418,7 +434,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                   <Globe className="w-8 h-8 text-slate-600" />
                   <p>Belum ada ruang publik terbuka saat ini.</p>
                   <p className="text-slate-500">
-                    Klik &quot;Cari Pertandingan Global&quot; atau &quot;Buat Ruang Online&quot; untuk mengundang pemain dari seluruh dunia!
+                    Buat ruang publik agar pemain lain dapat menemukannya di daftar ini.
                   </p>
                 </div>
               ) : (
@@ -468,7 +484,8 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
             {/* Room Info & Invite Bar */}
             <div className="lg:col-span-12 flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-900/80 border border-[#d4af37]/30">
               <div>
-                <div className="text-sm font-bold text-white">{room.name}</div>
+                <div className="text-sm font-bold text-amber-100">{room.name}</div>
+                <p className="text-xs text-teal-200">Ruang 5v5 · {room.isPublic ? 'Publik' : 'Privat'}</p>
                 <div className="text-xs text-slate-400">
                   Kode Ruang: <span className="font-mono-num font-bold text-[#fbbf24]">{room.code}</span> ·{' '}
                   {room.players.length}/{room.maxPlayers} Pemain (Slot kosong otomatis diisi Bot Cerdas)
@@ -571,7 +588,8 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                             {showVideo && stream ? (
                               <StreamVideo
                                 stream={stream}
-                                muted={isMe}
+                                muted={isMe || !media.speakerOn}
+                                volume={media.speakerVolume}
                                 mirrored={isMe}
                                 className="w-full h-full object-cover"
                               />
@@ -581,7 +599,8 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                                 {!isMe && stream && stream.getAudioTracks().length > 0 && (
                                   <StreamVideo
                                     stream={stream}
-                                    muted={false}
+                                    muted={!media.speakerOn}
+                                    volume={media.speakerVolume}
                                     className="w-px h-px opacity-0 pointer-events-none absolute"
                                   />
                                 )}
@@ -613,6 +632,12 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                         </div>
                       );
                     })}
+                    {Array.from({ length: 5 - col.list.length }, (_, index) => (
+                      <div key={index} className="flex min-h-9 items-center gap-2 rounded-lg border border-dashed border-slate-700 px-2 text-xs text-slate-400">
+                        <UserPlus aria-hidden="true" className="size-4" />
+                        Slot kosong
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}

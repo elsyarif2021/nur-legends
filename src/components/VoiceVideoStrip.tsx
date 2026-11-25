@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Mic, MicOff, Video, VideoOff } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import { OnlinePlayerInfo } from '../types/game';
 import { MediaSnapshot, webrtcManager } from '../network/WebRTCManager';
 import { HeroAvatar } from './HeroAvatar';
@@ -8,6 +8,7 @@ interface StreamVideoProps {
   stream: MediaStream | null;
   muted: boolean;
   mirrored?: boolean;
+  volume?: number;
   className?: string;
 }
 
@@ -15,6 +16,7 @@ export const StreamVideo: React.FC<StreamVideoProps> = ({
   stream,
   muted,
   mirrored = false,
+  volume = 1,
   className = '',
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -31,6 +33,10 @@ export const StreamVideo: React.FC<StreamVideoProps> = ({
       });
     }
   }, [stream]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = volume;
+  }, [volume]);
 
   return (
     <video
@@ -72,8 +78,7 @@ export const VoiceVideoStrip: React.FC<VoiceVideoStripProps> = ({
         </button>
       )}
 
-      {!collapsed && (
-        <div className="flex flex-col gap-1.5 max-h-[46vh] overflow-y-auto custom-scroll pr-0.5">
+      <div className={collapsed ? 'hidden' : 'flex flex-col gap-1.5 max-h-[46vh] overflow-y-auto custom-scroll pr-0.5'}>
           {players.map((p) => {
             const isLocal = p.id === localPlayerId;
             const stream = isLocal
@@ -102,7 +107,8 @@ export const VoiceVideoStrip: React.FC<VoiceVideoStripProps> = ({
                   {hasVideo && stream ? (
                     <StreamVideo
                       stream={stream}
-                      muted={isLocal}
+                      muted={isLocal || !media.speakerOn}
+                      volume={media.speakerVolume}
                       mirrored={isLocal}
                       className="w-full h-full object-cover"
                     />
@@ -113,7 +119,8 @@ export const VoiceVideoStrip: React.FC<VoiceVideoStripProps> = ({
                       {!isLocal && hasAudioTrack && stream && (
                         <StreamVideo
                           stream={stream}
-                          muted={false}
+                          muted={!media.speakerOn}
+                          volume={media.speakerVolume}
                           className="w-px h-px opacity-0 pointer-events-none absolute"
                         />
                       )}
@@ -154,8 +161,7 @@ export const VoiceVideoStrip: React.FC<VoiceVideoStripProps> = ({
               </div>
             );
           })}
-        </div>
-      )}
+      </div>
 
       {/* Quick media action strip */}
       <div className="flex items-center gap-1.5">
@@ -184,6 +190,16 @@ export const VoiceVideoStrip: React.FC<VoiceVideoStripProps> = ({
         >
           {media.micOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
           <span>Mik</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Speaker suara pemain"
+          aria-pressed={media.speakerOn}
+          onClick={() => webrtcManager.setSpeakerEnabled(!media.speakerOn)}
+          className="flex items-center gap-1 rounded-md border border-slate-700 bg-[#081523]/90 px-2 py-1 text-[10px] font-bold text-slate-200"
+        >
+          {media.speakerOn ? <Volume2 aria-hidden="true" className="size-3" /> : <VolumeX aria-hidden="true" className="size-3" />}
+          Speaker
         </button>
       </div>
     </div>

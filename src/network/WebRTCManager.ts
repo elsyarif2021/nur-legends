@@ -3,6 +3,8 @@ import { onlineClient } from './OnlineRoomClient';
 export interface MediaSnapshot {
   camOn: boolean;
   micOn: boolean;
+  speakerOn: boolean;
+  speakerVolume: number;
   localStream: MediaStream | null;
   remoteStreams: Record<string, MediaStream>;
   speakingIds: Record<string, boolean>;
@@ -20,6 +22,8 @@ class WebRTCManager {
   private localStream: MediaStream | null = null;
   private camOn = false;
   private micOn = false;
+  private speakerOn = true;
+  private speakerVolume = 1;
   private lastError: string | null = null;
   private peers = new Map<string, RTCPeerConnection>();
   private remoteStreams = new Map<string, MediaStream>();
@@ -49,11 +53,24 @@ class WebRTCManager {
     return {
       camOn: this.camOn,
       micOn: this.micOn,
+      speakerOn: this.speakerOn,
+      speakerVolume: this.speakerVolume,
       localStream: this.localStream,
       remoteStreams: remoteObj,
       speakingIds: speakObj,
       error: this.lastError,
     };
+  }
+
+  public setSpeakerEnabled(enabled: boolean): void {
+    this.speakerOn = enabled;
+    this.emit();
+  }
+
+  public setSpeakerVolume(volume: number): void {
+    if (!Number.isFinite(volume)) return;
+    this.speakerVolume = Math.min(1, Math.max(0, volume));
+    this.emit();
   }
 
   private emit(): void {
