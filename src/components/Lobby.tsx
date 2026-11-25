@@ -542,6 +542,7 @@ export const Lobby: React.FC<LobbyProps> = ({
           playerName={progress.playerName}
           selectedHeroId={progress.selectedHeroId}
           initialRoomCode={initialRoomCode}
+          onDismissInvitation={onClearInitialRoomCode}
           onChangePlayerName={onChangePlayerName}
           onSelectHero={onSelectHero}
           onMatchStart={(startedRoom, localPlayerId) => {

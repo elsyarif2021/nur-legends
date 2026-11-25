@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Bell,
   Check,
   Copy,
   Globe,
@@ -9,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   Send,
+  UserPlus,
   Users,
   Video,
   VideoOff,
@@ -32,6 +34,7 @@ interface OnlineLobbyModalProps {
   playerName: string;
   selectedHeroId: HeroId;
   initialRoomCode?: string | null;
+  onDismissInvitation?: () => void;
   onChangePlayerName: (name: string) => void;
   onSelectHero: (heroId: HeroId) => void;
   onMatchStart: (room: OnlineRoomState, localPlayerId: string) => void;
@@ -42,6 +45,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
   playerName,
   selectedHeroId,
   initialRoomCode,
+  onDismissInvitation,
   onChangePlayerName,
   onSelectHero,
   onMatchStart,
@@ -54,7 +58,8 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
   const [media, setMedia] = useState<MediaSnapshot>(() => webrtcManager.getSnapshot());
   const [chatLog, setChatLog] = useState<OnlineChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
-  const [joinCode, setJoinCode] = useState(initialRoomCode || '');
+  const [joinCode, setJoinCode] = useState('');
+  const [showInviteLink, setShowInviteLink] = useState(false);
   const [newRoomName, setNewRoomName] = useState(`Arena ${playerName}`);
   const [isPublic, setIsPublic] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -66,18 +71,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
     const unsubNet = onlineClient.subscribe({
       onStatusChange: (s) => setStatus(s),
-      onWelcome: (id) => {
-        setPlayerId(id);
-        if (initialRoomCode) {
-          onlineClient.joinRoom({
-            code: initialRoomCode,
-            playerName,
-            heroId: selectedHeroId,
-            camOn: webrtcManager.getSnapshot().camOn,
-            micOn: webrtcManager.getSnapshot().micOn,
-          });
-        }
-      },
+      onWelcome: setPlayerId,
       onRoomList: (list) => setRooms(list),
       onRoomState: (nextRoom) => {
         setRoom(nextRoom);
@@ -114,6 +108,18 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
     }
   };
 
+  const joinByCode = (code: string) => {
+    soundEngine.playClick();
+    setErrorMsg(null);
+    onlineClient.joinRoom({
+      code: code.trim().toUpperCase(),
+      playerName,
+      heroId: selectedHeroId,
+      camOn: media.camOn,
+      micOn: media.micOn,
+    });
+  };
+
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = chatInput.trim();
@@ -127,6 +133,18 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
   const bluePlayers = room ? room.players.filter((p) => p.team === 'blue') : [];
   const redPlayers = room ? room.players.filter((p) => p.team === 'red') : [];
+
+  const inviteUrl = room ? new URL(`?room=${encodeURIComponent(room.code)}`, window.location.origin).href : '';
+
+  const shareInvite = async () => {
+    try {
+      await navigator.share({ title: 'Undangan NUR LEGENDS', text: 'Ayo bergabung ke ruang NUR LEGENDS!', url: inviteUrl });
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        setCopiedNotice('Bagikan tautan dengan menyalinnya di bawah.');
+      }
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-6">
@@ -214,6 +232,31 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
         {/* MAIN BODY */}
         {!room ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-y-auto custom-scroll pr-1">
+            {initialRoomCode && (
+              <section aria-labelledby="room-invitation-title" className="lg:col-span-12 rounded-xl border border-amber-400/60 bg-[#123332] p-4">
+                <h3 id="room-invitation-title" className="flex items-center gap-2 font-bold text-amber-100">
+                  <Bell aria-hidden="true" className="size-5" /> Undangan Bermain
+                </h3>
+                <p className="mt-1 text-sm text-slate-200">Kamu diundang ke ruang <strong className="text-amber-200">{initialRoomCode}</strong>.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={status !== 'connected' || !playerId}
+                    onClick={() => {
+                      setJoinCode(initialRoomCode);
+                      joinByCode(initialRoomCode);
+                      onDismissInvitation?.();
+                    }}
+                    className="min-h-11 rounded-lg bg-amber-300 px-4 text-sm font-bold text-slate-950 disabled:opacity-50"
+                  >
+                    Terima &amp; Gabung
+                  </button>
+                  <button type="button" onClick={onDismissInvitation} className="min-h-11 rounded-lg border border-teal-500 px-4 text-sm font-bold text-teal-100">
+                    Tolak
+                  </button>
+                </div>
+              </section>
+            )}
             {/* Left Column: Profile + Camera Preview + Quick Match + Create/Join */}
             <div className="lg:col-span-5 flex flex-col gap-3">
               {/* Nickname & Camera/Mic Studio Preview */}
@@ -345,16 +388,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                   <button
                     type="button"
                     disabled={status !== 'connected' || joinCode.trim().length < 4}
-                    onClick={() => {
-                      soundEngine.playClick();
-                      onlineClient.joinRoom({
-                        code: joinCode.trim().toUpperCase(),
-                        playerName,
-                        heroId: selectedHeroId,
-                        camOn: media.camOn,
-                        micOn: media.micOn,
-                      });
-                    }}
+                    onClick={() => joinByCode(joinCode)}
                     className="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold text-xs"
                   >
                     Gabung
@@ -442,7 +476,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {copiedNotice && (
-                  <span className="text-xs font-semibold text-emerald-300">{copiedNotice}</span>
+                  <span role="status" className="text-xs font-semibold text-emerald-300">{copiedNotice}</span>
                 )}
                 <button
                   type="button"
@@ -453,25 +487,39 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const url = `${window.location.origin}?room=${room.code}`;
-                    void handleCopy(url, 'Tautan undangan disalin!');
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-sky-700/60 hover:bg-sky-600/70 text-xs font-semibold text-sky-100 flex items-center gap-1"
+                  onClick={() => setShowInviteLink(open => !open)}
+                  aria-expanded={showInviteLink}
+                  aria-controls="invite-link-panel"
+                  className="flex min-h-11 items-center gap-2 rounded-lg bg-amber-300 px-3 text-sm font-bold text-slate-950 hover:bg-amber-200"
                 >
-                  <Globe className="w-3.5 h-3.5" /> Salin Tautan Dunia
+                  <UserPlus aria-hidden="true" className="size-4" /> Undang Pemain
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     onlineClient.leaveRoom();
                     setRoom(null);
+                    setShowInviteLink(false);
                   }}
                   className="px-3 py-1.5 rounded-lg bg-rose-900/70 hover:bg-rose-800 text-xs font-semibold text-rose-100"
                 >
                   Keluar Ruang
                 </button>
               </div>
+              {showInviteLink && (
+                <div id="invite-link-panel" className="w-full border-t border-slate-700 pt-3">
+                  <label htmlFor="room-invite-link" className="text-sm font-semibold text-amber-100">Tautan undangan</label>
+                  <p className="mb-2 text-xs text-slate-300">Bagikan tautan ini. Pemain memilih Terima &amp; Gabung setelah membukanya.</p>
+                  <input id="room-invite-link" readOnly value={inviteUrl} onFocus={event => event.currentTarget.select()} className="w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm text-slate-100" />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void handleCopy(inviteUrl, 'Tautan undangan disalin!')} className="min-h-11 rounded-lg bg-teal-800 px-3 text-sm font-bold text-teal-50">Salin Tautan</button>
+                    {typeof navigator.share === 'function' && (
+                      <button type="button" onClick={() => void shareInvite()} className="min-h-11 rounded-lg border border-teal-500 px-3 text-sm font-bold text-teal-100">Bagikan</button>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* Teams Roster (with live Camera & Mic tiles!) */}
