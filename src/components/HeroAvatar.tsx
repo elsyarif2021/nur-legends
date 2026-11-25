@@ -65,7 +65,7 @@ export const HeroAvatar: React.FC<HeroAvatarProps> = ({
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center shrink-0 rounded-full ${sizeClass} ${className}`}
+      className={`relative inline-flex items-center justify-center shrink-0 rounded-full ${isLarge ? 'nur-hero-avatar' : ''} ${sizeClass} ${className}`}
     >
       {/* Outer ornamental gold ring for large showcase avatars */}
       {isLarge && (
@@ -97,7 +97,7 @@ export const HeroAvatar: React.FC<HeroAvatarProps> = ({
 
       {/* Main circular portrait container */}
       <div
-        className="relative w-full h-full rounded-full overflow-hidden shadow-lg"
+        className={`relative w-full h-full rounded-full overflow-hidden shadow-lg ${isLarge ? 'nur-hero-portrait' : ''}`}
         style={{
           background: `radial-gradient(circle at 50% 30%, ${p.bg1}, ${p.bg2})`,
           border: `${isLarge ? '3px' : '2px'} solid ${p.trim}`,

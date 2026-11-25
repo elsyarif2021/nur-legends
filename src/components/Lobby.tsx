@@ -140,16 +140,16 @@ export const Lobby: React.FC<LobbyProps> = ({
       className="nur-lobby relative w-full h-full overflow-hidden flex flex-col justify-between bg-gradient-to-br from-[#0b2338] via-[#071524] to-[#050d17]"
       onPointerDown={() => soundEngine.unlock()}
     >
-      {/* Animated Fantasy Palace Backdrop */}
+      {/* Palace backdrop and decorative lighting */}
       <img
         src={palaceBackdrop}
         alt=""
         referrerPolicy="no-referrer"
-        className="absolute inset-0 w-full h-full object-cover opacity-55 scale-105 transition-transform duration-[12000ms]"
+        className="nur-lobby-backdrop absolute inset-0 w-full h-full object-cover opacity-55"
       />
-      {/* Measured atmospheric scrim for high readability */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#06111e]/90 via-[#071628]/55 to-[#06111e]/85" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#050d17] via-transparent to-[#050d17]/75" />
+      <div className="nur-lobby-aurora" aria-hidden="true" />
+      <div className="nur-lobby-geometry" aria-hidden="true" />
+      <div className="nur-lobby-vignette" aria-hidden="true" />
 
       {/* Ornamental geometric corners */}
       <CornerFiligree className="absolute top-3 left-3 w-8 h-8 pointer-events-none opacity-80" />

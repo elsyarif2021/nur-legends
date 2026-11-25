@@ -195,8 +195,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   }, [heroId, mode, matchKey, arenaId, difficulty]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#07111e] touch-none select-none">
-      <div ref={containerRef} className="w-full h-full" />
+    <div className="nur-battle relative w-full h-full overflow-hidden touch-none select-none">
+      <div ref={containerRef} className="nur-battle-canvas w-full h-full" />
       <GameHUD
         hud={hud}
         mode={mode}

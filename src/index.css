@@ -109,7 +109,7 @@
   .nur-skill-zone { width: min(43vw, 170px); height: min(39vw, 155px); }
   .nur-lobby-tools { max-width: 44%; }
   .nur-lobby-tools button { font-size: 10px; padding: 5px 7px; }
-  .nur-refresh { left: max(8px, env(safe-area-inset-left)); transform: none; }
+  .nur-refresh { left: max(8px, env(safe-area-inset-left)); translate: none; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .nur-lobby-header { padding-block: 5px; gap: 6px; }
@@ -125,6 +125,137 @@
   .nur-stick-ring { width: min(19vw, 32dvh); height: min(19vw, 32dvh); }
   .nur-skill-zone { width: min(32vw, 220px); height: min(40dvh, 160px); }
 }
+/* Tema lobi dan arena dari Visual Upgrade. */
+.nur-lobby {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(14, 104, 84, .24), transparent 42%),
+    linear-gradient(145deg, #0b2930 0%, #071923 52%, #030c13 100%);
+}
+
+.nur-lobby-backdrop {
+  filter: saturate(.88) contrast(1.08);
+  transform: scale(1.035);
+  animation: nur-backdrop-drift 32s ease-in-out infinite alternate;
+}
+
+.nur-lobby-aurora,
+.nur-lobby-geometry,
+.nur-lobby-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.nur-lobby-aurora {
+  z-index: 1;
+  opacity: .62;
+  background:
+    radial-gradient(ellipse at 50% 58%, rgba(15, 173, 137, .2), transparent 38%),
+    radial-gradient(ellipse at 82% 22%, rgba(224, 183, 92, .12), transparent 30%),
+    radial-gradient(ellipse at 12% 78%, rgba(14, 116, 104, .2), transparent 32%);
+  mix-blend-mode: screen;
+}
+
+.nur-lobby-geometry {
+  z-index: 1;
+  opacity: .3;
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 29px, rgba(226, 194, 121, .18) 30px, transparent 31px 60px),
+    repeating-linear-gradient(-45deg, transparent 0 29px, rgba(226, 194, 121, .12) 30px, transparent 31px 60px);
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+
+.nur-lobby-vignette {
+  z-index: 2;
+  background:
+    linear-gradient(90deg, rgba(2, 12, 17, .42), transparent 24%, transparent 76%, rgba(2, 12, 17, .42)),
+    linear-gradient(0deg, rgba(2, 9, 13, .7), transparent 32%, rgba(2, 9, 13, .16));
+}
+
+.nur-lobby-header {
+  background: linear-gradient(180deg, rgba(3, 17, 23, .84), rgba(3, 17, 23, .42));
+  border-bottom-color: rgba(222, 188, 105, .26);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(14px);
+}
+
+.nur-lobby-main > nav > button {
+  border-color: rgba(213, 181, 103, .28);
+  background: linear-gradient(135deg, rgba(7, 37, 39, .88), rgba(5, 19, 30, .9));
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .2), inset 0 1px rgba(255, 255, 255, .055);
+  transition: transform .2s ease, border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nur-lobby-main > nav > button:hover {
+    transform: translateX(4px);
+    border-color: rgba(244, 218, 151, .68);
+    background: linear-gradient(135deg, rgba(9, 69, 58, .94), rgba(7, 29, 39, .94));
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .28), 0 0 22px rgba(20, 184, 166, .09);
+  }
+}
+
+.nur-lobby .ornate-panel {
+  background:
+    linear-gradient(145deg, rgba(10, 43, 42, .94), rgba(5, 19, 29, .96));
+  border-color: rgba(218, 185, 105, .4);
+  box-shadow: 0 22px 52px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .075);
+}
+
+.nur-lobby-footer {
+  background: rgba(3, 15, 21, .74);
+  border-top-color: rgba(218, 185, 105, .22);
+  backdrop-filter: blur(12px);
+}
+
+.nur-lobby button:focus-visible,
+.nur-battle button:focus-visible {
+  outline: 2px solid #f4dfa0;
+  outline-offset: 3px;
+}
+
+.nur-hero-portrait {
+  outline: 1px solid rgba(222, 188, 105, .55);
+  outline-offset: 4px;
+}
+
+.nur-hero-avatar img {
+  transition: transform .45s cubic-bezier(.2, .7, .2, 1), filter .45s ease;
+  filter: saturate(.92) contrast(1.04);
+}
+
+.nur-hero-avatar:hover img {
+  transform: scale(1.055);
+  filter: saturate(1.08) contrast(1.06);
+}
+
+.nur-battle {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(11, 65, 57, .12), transparent 70%),
+    #07111e;
+}
+
+.nur-battle canvas {
+  display: block;
+}
+
+.nur-battle-canvas {
+  background-color: #071a1b;
+}
+
+@keyframes nur-backdrop-drift {
+  from { transform: scale(1.035) translate3d(-.25%, 0, 0); }
+  to { transform: scale(1.09) translate3d(.35%, -.25%, 0); }
+}
+
+@media (max-width: 767px) {
+  .nur-lobby-backdrop { opacity: .42; }
+  .nur-lobby-geometry { opacity: .16; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-float-slow, .animate-aura { animation: none; }
+  .nur-lobby-backdrop, .animate-float-slow, .animate-aura { animation: none; }
+  .nur-lobby-main > nav > button, .nur-hero-avatar img { transition: none; }
+  .nur-lobby-main > nav > button:hover, .nur-hero-avatar:hover img { transform: none; }
 }
