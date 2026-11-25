@@ -259,3 +259,77 @@
   .nur-lobby-main > nav > button, .nur-hero-avatar img { transition: none; }
   .nur-lobby-main > nav > button:hover, .nur-hero-avatar:hover img { transform: none; }
 }
+
+.nur-intro {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 1rem;
+  overflow: hidden;
+  color: #f7f3e8;
+  background:
+    radial-gradient(ellipse at 50% 43%, #15483c 0%, #0a2928 26%, transparent 63%),
+    #06121e;
+}
+
+.nur-intro::backdrop { background: transparent; }
+
+.nur-intro[open] {
+  display: grid;
+  place-items: center;
+  animation: nur-intro-exit .28s ease-in 1.3s both;
+}
+
+.nur-intro-brand {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  animation: nur-intro-reveal .65s cubic-bezier(.2, .75, .3, 1) both;
+}
+
+.nur-intro-emblem {
+  width: clamp(4rem, 17vmin, 8rem);
+  aspect-ratio: 1;
+  margin-bottom: clamp(.6rem, 3vmin, 1.5rem);
+  filter: drop-shadow(0 0 1.5rem #dfb45680);
+  animation: nur-intro-emblem .95s cubic-bezier(.2, .75, .3, 1) both;
+}
+
+.nur-intro-skip {
+  position: absolute;
+  inset-inline-end: max(1rem, env(safe-area-inset-right));
+  inset-block-end: max(1rem, env(safe-area-inset-bottom));
+  min-height: 44px;
+  padding: .4rem 1rem;
+  border: 1px solid #f4dfa080;
+  border-radius: 999px;
+  color: #f4dfa0;
+  background: #06121e;
+}
+
+.nur-intro-skip:focus-visible {
+  outline: 2px solid #f4dfa0;
+  outline-offset: 3px;
+}
+
+@keyframes nur-intro-reveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nur-intro-emblem {
+  from { opacity: 0; transform: scale(.68) rotate(-20deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes nur-intro-exit {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nur-intro[open], .nur-intro-brand, .nur-intro-emblem { animation: none; }
+}
