@@ -1,3 +1,4 @@
+import { Crosshair } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { HEROES } from '../services/gameCatalog';
 import { BattleInputBridge, HudSnapshot } from '../types/game';
@@ -15,6 +16,8 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   visible = true,
 }) => {
   const heroDef = HEROES[hud.heroId];
+  const isRanged = heroDef.stats.isRanged;
+  const attackLabel = isRanged ? 'Tembak' : 'Serang';
   const [custom, setCustom] = useState(() => {
     try {
       const v = JSON.parse(localStorage.getItem('nur_controls') || '{}');
@@ -214,6 +217,11 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     inputBridge.current.moveY = 0;
   };
 
+  const queueAction = (action: BattleInputBridge['triggerQueue'][number]) => {
+    const queue = inputBridge.current.triggerQueue;
+    if (!queue.includes(action)) queue.push(action);
+  };
+
   const triggerAction = (
     e: React.PointerEvent<HTMLButtonElement>,
     act: 'basic' | 's1' | 's2' | 's3' | 'ult' | 'recall' | 'recovery'
@@ -221,7 +229,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     e.stopPropagation();
-    if (!inputBridge.current.triggerQueue.includes(act)) inputBridge.current.triggerQueue.push(act);
+    queueAction(act);
   };
 
   const startAttack = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -230,9 +238,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     attackPointer.current = e.pointerId;
     setAttacking(true);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* optional */ }
-    attackTimer.current = window.setInterval(() => {
-      if (!inputBridge.current.triggerQueue.includes('basic')) inputBridge.current.triggerQueue.push('basic');
-    }, 100);
+    attackTimer.current = window.setInterval(() => queueAction('basic'), 100);
   };
   const endAttack = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (attackPointer.current === e.pointerId) stopAttack();
@@ -392,12 +398,13 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
             onPointerUp={endAttack}
             onPointerCancel={endAttack}
             onLostPointerCapture={endAttack}
-            aria-pressed={attacking}
-            className="pointer-events-auto absolute right-0 bottom-0 w-[clamp(58px,12vw,96px)] h-[clamp(58px,12vw,96px)] rounded-full bg-gradient-to-br from-[#d4af37] to-[#92400e] border-3 border-[#fef3c7] text-[#07111e] flex flex-col items-center justify-center shadow-2xl hover:brightness-110 active:scale-90 transition-transform cursor-pointer"
-            title="Serangan Dasar — tahan untuk menyerang berulang (Spasi)"
+            onClick={(e) => { if (e.detail === 0) queueAction('basic'); }}
+            data-attacking={attacking}
+            className="pointer-events-auto absolute right-0 bottom-0 w-[clamp(58px,12vw,96px)] h-[clamp(58px,12vw,96px)] rounded-full bg-gradient-to-br from-[#d4af37] to-[#92400e] border-3 border-[#fef3c7] text-[#07111e] flex flex-col items-center justify-center shadow-2xl hover:brightness-110 active:scale-90 transition-transform cursor-pointer data-[attacking=true]:scale-90 data-[attacking=true]:brightness-125"
+            title={`${attackLabel} (Spasi). Tahan untuk mengulang.`}
           >
-            <SkillIcon type="sword" className="w-8 h-8" />
-            <span className="text-[10px] font-extrabold uppercase tracking-wider mt-0.5">{attacking ? "Tahan" : "Serang"}</span>
+            {isRanged ? <Crosshair className="w-8 h-8" aria-hidden="true" /> : <SkillIcon type="sword" className="w-8 h-8" />}
+            <span className="text-[10px] font-extrabold uppercase tracking-wider mt-0.5">{attackLabel}</span>
           </button>
         </div>
       </div>
