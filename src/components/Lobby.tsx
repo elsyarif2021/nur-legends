@@ -1,3 +1,4 @@
+import palaceBackdrop from '../assets/images/palace_lobby_bg_1795510715124.webp';
 import { AdminDashboard } from './AdminDashboard';
 import { authClient } from '../services/authClient';
 import { BOT_DIFFICULTIES } from '../game/BotDifficulty';
@@ -76,7 +77,6 @@ type ModalTab =
   | 'online'
   | null;
 
-const PALACE_BG = '/src/assets/images/palace_lobby_bg_1795510715124.jpg';
 
 export const Lobby: React.FC<LobbyProps> = ({
   progress,
@@ -142,8 +142,8 @@ export const Lobby: React.FC<LobbyProps> = ({
     >
       {/* Animated Fantasy Palace Backdrop */}
       <img
-        src={PALACE_BG}
-        alt="Istana Cahaya Nur Legends"
+        src={palaceBackdrop}
+        alt=""
         referrerPolicy="no-referrer"
         className="absolute inset-0 w-full h-full object-cover opacity-55 scale-105 transition-transform duration-[12000ms]"
       />

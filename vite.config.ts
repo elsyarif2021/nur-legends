@@ -1,44 +1,37 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import fs from 'fs';
-import path from 'path';
-import {defineConfig} from 'vite';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { defineConfig } from 'vite';
 
-export default defineConfig(() => {
-  return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      // Copies src/assets into dist/ so root-relative URLs like
-      // "/src/assets/images/..." (e.g. generate_image output) still resolve
-      // in production builds. Do not remove.
-      {
-        name: 'copy-unbundled-src-assets',
-        apply: 'build',
-        closeBundle(error?: Error): void {
-          if (error) {
-            return;
-          }
-          const distDir = path.resolve(__dirname, 'dist');
-          const srcAssets = path.resolve(__dirname, 'src/assets');
-          const distAssets = path.resolve(distDir, 'src/assets');
-          if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
-            fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
-          }
-        },
-      },
-    ],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: 'offline-game',
+      apply: 'build',
+      closeBundle(error?: Error) {
+        if (error) return;
+        const dist = path.resolve(import.meta.dirname, 'dist');
+        const files = fs.readdirSync(path.join(dist, 'assets')).sort().map(file => '/assets/' + file);
+        const index = fs.readFileSync(path.join(dist, 'index.html'));
+        const version = createHash('sha256').update(index).update(JSON.stringify(files)).digest('hex').slice(0, 16);
+        const worker = path.join(dist, 'sw.js');
+        const source = fs.readFileSync(worker, 'utf8');
+        fs.writeFileSync(worker, source.replace('__BUILD_VERSION__', version).replace('/* BUILD_ASSETS */', files.map(file => ', ' + JSON.stringify(file)).join('')));
       },
     },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+  ],
+  resolve: {
+    alias: {
+      '@': import.meta.dirname,
     },
-  };
+  },
+  server: {
+    // Disable live reload in AI Studio when requested.
+    hmr: process.env.DISABLE_HMR !== 'true',
+    watch: process.env.DISABLE_HMR === 'true' ? null : {},
+  },
 });

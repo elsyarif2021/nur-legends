@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { InstallGame } from './components/InstallGame';
 import { AuthModal } from './components/AuthModal';
-import { BattleArena } from './components/BattleArena';
 import { Lobby } from './components/Lobby';
 import { readDifficulty } from './game/BotDifficulty';
 import type { BotDifficulty } from './types/game';
@@ -34,6 +33,33 @@ import {
   PlayerSettings,
   ScreenView,
 } from './types/game';
+
+const BattleArena = lazy(async () => {
+  const { BattleArena } = await import('./components/BattleArena');
+  return { default: BattleArena };
+});
+
+class ArenaBoundary extends Component<{ children: ReactNode; onExit: () => void }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+
+    return (
+      <div role="alert" className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center text-amber-100">
+        <p>Arena gagal dimuat. Muat ulang halaman atau kembali ke lobi.</p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <button type="button" className="rounded-lg bg-emerald-800 px-4 py-3" onClick={() => window.location.reload()}>Muat ulang</button>
+          <button type="button" className="rounded-lg bg-slate-800 px-4 py-3" onClick={this.props.onExit}>Kembali ke lobi</button>
+        </div>
+      </div>
+    );
+  }
+}
 
 function getInitialInviteRoomCode(): string | null {
   try {
@@ -434,24 +460,28 @@ export default function App() {
           )}
         </>
       ) : (
-        <BattleArena
-          narratorLanguage={narratorLanguage}
-          narratorEnabled={guideEnabled}
-          heroId={progress.selectedHeroId}
-          mode={activeMode}
-          difficulty={activeMode === 'online' ? 'normal' : difficulty}
-          arenaId={activeMode === 'online' ? 'oasis' : arenaId}
-          onlineRoom={onlineRoom}
-          onlinePlayerId={onlinePlayerId}
-          settings={progress.settings}
-          showTutorialInitially={
-            !progress.tutorialCompleted && progress.settings.showTutorialOnStart
-          }
-          onUpdateSettings={handleUpdateSettings}
-          onDismissTutorial={handleDismissTutorial}
-          onMatchFinished={handleMatchFinished}
-          onExitToLobby={handleExitToLobby}
-        />
+        <ArenaBoundary onExit={handleExitToLobby}>
+          <Suspense fallback={<div role="status" className="grid h-full place-items-center text-amber-100">Memuat arena…</div>}>
+            <BattleArena
+              narratorLanguage={narratorLanguage}
+              narratorEnabled={guideEnabled}
+              heroId={progress.selectedHeroId}
+              mode={activeMode}
+              difficulty={activeMode === 'online' ? 'normal' : difficulty}
+              arenaId={activeMode === 'online' ? 'oasis' : arenaId}
+              onlineRoom={onlineRoom}
+              onlinePlayerId={onlinePlayerId}
+              settings={progress.settings}
+              showTutorialInitially={
+                !progress.tutorialCompleted && progress.settings.showTutorialOnStart
+              }
+              onUpdateSettings={handleUpdateSettings}
+              onDismissTutorial={handleDismissTutorial}
+              onMatchFinished={handleMatchFinished}
+              onExitToLobby={handleExitToLobby}
+            />
+          </Suspense>
+        </ArenaBoundary>
       )}
     </div>
   );

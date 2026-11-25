@@ -1,25 +1,37 @@
-const CACHE = 'nur-legends-shell-v2';
-const SHELL = ['/', '/manifest.webmanifest', '/icons/nur-rosette-192.png', '/icons/nur-rosette-512.png'];
+const CACHE_PREFIX = 'nur-legends-shell-';
+const CACHE = CACHE_PREFIX + '__BUILD_VERSION__';
+const SHELL = ['/', '/manifest.webmanifest', '/icons/nur-rosette-192.png', '/icons/nur-rosette-512.png' /* BUILD_ASSETS */];
+
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(
+    SHELL.map(url => new Request(url, { cache: 'reload' })),
+  )));
 });
+
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('nur-legends-shell-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
+
 self.addEventListener('fetch', event => {
-  const req = event.request;
-  const url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname === '/ws' || req.headers.has('authorization')) return;
-  if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => caches.match('/').then(hit => hit || Response.error())));
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== self.location.origin || request.headers.has('authorization')) return;
+
+  if (request.mode === 'navigate' && !url.pathname.startsWith('/api/') && url.pathname !== '/ws') {
+    event.respondWith(fetch(request).catch(async () => {
+      const cache = await caches.open(CACHE);
+      return await cache.match('/') || Response.error();
+    }));
     return;
   }
-  if (!/^\/(assets\/|src\/assets\/|icons\/)/.test(url.pathname)) return;
-  event.respondWith(caches.open(CACHE).then(async cache => {
-    const hit = await cache.match(req);
-    if (hit) return hit;
-    const res = await fetch(req);
-    if (res.ok && res.type === 'basic') await cache.put(req, res.clone());
-    return res;
-  }));
+
+  if (!SHELL.includes(url.pathname) || url.pathname === '/') return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    return await cache.match(request) || fetch(request);
+  })());
 });

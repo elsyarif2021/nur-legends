@@ -1,4 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import aminPortrait from '../assets/images/hero_real_amin_1795513357431.webp';
+import farisPortrait from '../assets/images/hero_real_faris_1795513357916.webp';
+import hakimPortrait from '../assets/images/hero_real_hakim_1795513358256.webp';
+import zahraPortrait from '../assets/images/hero_real_zahra_1795513359066.webp';
+import zaidPortrait from '../assets/images/hero_real_zaid_1795513358924.webp';
+import mumtazPortrait from '../assets/images/hero_real_mumtaz_1795513359251.webp';
+import ainaPortrait from '../assets/images/hero_real_aina_1795513360509.webp';
 import { HEROES } from '../services/gameCatalog';
 import { HeroId } from '../types/game';
 
@@ -9,13 +16,13 @@ interface HeroAvatarProps {
 }
 
 const HERO_PORTRAITS: Record<HeroId, string> = {
-  amin: '/src/assets/images/hero_real_amin_1795513357431.jpg',
-  faris: '/src/assets/images/hero_real_faris_1795513357916.jpg',
-  hakim: '/src/assets/images/hero_real_hakim_1795513358256.jpg',
-  zahra: '/src/assets/images/hero_real_zahra_1795513359066.jpg',
-  zaid: '/src/assets/images/hero_real_zaid_1795513358924.jpg',
-  mumtaz: '/src/assets/images/hero_real_mumtaz_1795513359251.jpg',
-  aina: '/src/assets/images/hero_real_aina_1795513360509.jpg',
+  amin: aminPortrait,
+  faris: farisPortrait,
+  hakim: hakimPortrait,
+  zahra: zahraPortrait,
+  zaid: zaidPortrait,
+  mumtaz: mumtazPortrait,
+  aina: ainaPortrait,
 };
 
 const PALETTES: Record<

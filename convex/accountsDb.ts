@@ -36,11 +36,12 @@ export function sanitizeProgressObject(
       ? (src.settings as Record<string, unknown>)
       : {};
 
+  const gold = Number(src.gold ?? 500);
   return {
     playerName: sanitizeText(src.playerName, fallbackName, 24),
     level: Math.max(1, Math.min(999, Math.floor(Number(src.level) || 1))),
     xp: Math.max(0, Math.min(1000000, Math.floor(Number(src.xp) || 0))),
-    gold: Math.max(0, Math.min(10000000, Math.floor(Number(src.gold) || 500))),
+    gold: Math.max(0, Math.min(10000000, Math.floor(Number.isFinite(gold) ? gold : 500))),
     selectedHeroId: sanitizeHeroId(src.selectedHeroId),
     dailyMissions: Array.isArray(src.dailyMissions) ? src.dailyMissions.slice(0, 12) : [],
     lastMissionDate:
@@ -66,6 +67,9 @@ export function sanitizeProgressObject(
       showTutorialOnStart: settingsSrc.showTutorialOnStart !== false,
     },
     tutorialCompleted: Boolean(src.tutorialCompleted),
+    ...(typeof src.lastLoginRewardDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(src.lastLoginRewardDate)
+      ? { lastLoginRewardDate: src.lastLoginRewardDate }
+      : {}),
   };
 }
 

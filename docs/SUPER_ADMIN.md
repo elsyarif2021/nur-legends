@@ -1,9 +1,12 @@
-# Super Admin setup
+# Super Admin
 
-Set Railway server variables (never VITE_ variables):
-- SUPER_ADMIN_EMAILS: comma-separated registered administrator email addresses.
-- CONVEX_URL: production Convex URL if the frontend uses Convex authentication.
+Verifikasi identitas administrator melalui kanal tepercaya, lalu ambil ID akun yang sudah terdaftar dari dashboard Convex (tabel `accounts`, kolom `_id`). Untuk server Express tanpa Convex, ambil `id` akun dari penyimpanan akun server. Saat memakai Convex, gunakan ID dari deployment yang sama dengan frontend.
 
-Redeploy Railway, then sign in with an allowlisted account. The lobby checks /api/admin/overview; only authenticated allowlisted sessions receive monitoring data. No credentials or password hashes are returned. The dashboard is read-only and polls every five seconds. No database migration is required. If no allowlist exists, access is denied by default.
+Atur variabel berikut di backend Express (misalnya Railway).
 
-Test: unauthorized /api/admin/overview returns 403; a normal player receives 403; an allowlisted player receives 200. Verify logout, expiration, room counts and reconnect counts. Existing host-relay combat remains unchanged.
+- `SUPER_ADMIN_ACCOUNT_IDS` berisi daftar ID akun yang diizinkan, dipisahkan dengan koma.
+- `CONVEX_URL` menunjuk deployment Convex produksi jika frontend memakai autentikasi Convex.
+
+Konfigurasi lama `SUPER_ADMIN_EMAILS` harus diganti dengan daftar ID sebelum backend baru diterapkan. Jika daftar ID kosong, dashboard menolak akses. Pengaturan ini hanya berada di backend.
+
+Deploy ulang backend. Setelah masuk, akun yang diizinkan akan melihat tombol **Super Admin**. Dashboard hanya menampilkan data pemantauan. Periksa bahwa permintaan tanpa sesi dan sesi pemain biasa mendapatkan 403, sementara sesi yang diizinkan mendapatkan 200.

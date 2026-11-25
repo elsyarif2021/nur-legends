@@ -257,11 +257,12 @@ function sanitizeStoredProgress(
       ? (src.settings as Record<string, unknown>)
       : {};
 
+  const gold = Number(src.gold ?? 500);
   return {
     playerName: sanitizeText(src.playerName, fallbackName, 24),
     level: Math.max(1, Math.min(999, Math.floor(Number(src.level) || 1))),
     xp: Math.max(0, Math.min(1000000, Math.floor(Number(src.xp) || 0))),
-    gold: Math.max(0, Math.min(10000000, Math.floor(Number(src.gold) || 500))),
+    gold: Math.max(0, Math.min(10000000, Math.floor(Number.isFinite(gold) ? gold : 500))),
     selectedHeroId: sanitizeHeroId(src.selectedHeroId),
     dailyMissions: Array.isArray(src.dailyMissions) ? src.dailyMissions.slice(0, 12) : [],
     lastMissionDate:
@@ -286,6 +287,9 @@ function sanitizeStoredProgress(
       showTutorialOnStart: settingsSrc.showTutorialOnStart !== false,
     },
     tutorialCompleted: Boolean(src.tutorialCompleted),
+    ...(typeof src.lastLoginRewardDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(src.lastLoginRewardDate)
+      ? { lastLoginRewardDate: src.lastLoginRewardDate }
+      : {}),
   };
 }
 
@@ -465,26 +469,26 @@ async function startServer(): Promise<void> {
     next();
   });
 
-  // Admin authorization is server-side, fail closed when no allowlist is configured.
+  // Grant access only to explicitly approved, stable account IDs.
   app.get('/api/admin/overview', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const token = extractBearerToken(req);
-    const allowed = new Set((process.env.SUPER_ADMIN_EMAILS || '').split(',').map(e=>e.trim().toLowerCase()).filter(Boolean));
+    const allowed = new Set((process.env.SUPER_ADMIN_ACCOUNT_IDS || '').split(',').map(id => id.trim()).filter(Boolean));
     if (!token || !allowed.size) { res.status(403).json({error:'Akses admin tidak diizinkan.'}); return; }
-    let email: string | undefined;
+    let accountId: string | undefined;
     try {
       const convexUrl = (process.env.CONVEX_URL || process.env.VITE_CONVEX_URL || '').trim();
       if (convexUrl) {
         const client = new ConvexHttpClient(convexUrl);
-        const ref = makeFunctionReference<'action', {token:string}, {ok:boolean;user?:{email:string}}>('authActions:getMe');
+        const ref = makeFunctionReference<'action', {token:string}, { ok: boolean; user?: { id: string } }>('authActions:getMe');
         const result = await client.action(ref,{token});
-        if (result.ok) email = result.user?.email;
+        if (result.ok) accountId = result.user?.id;
       } else {
         const verified = verifySessionToken(token);
-        if (verified) email = accountsById.get(verified.sub)?.email;
+        if (verified && accountsById.has(verified.sub)) accountId = verified.sub;
       }
     } catch { res.status(503).json({error:'Verifikasi sesi tidak tersedia.'}); return; }
-    if (!email || !allowed.has(email.toLowerCase())) { res.status(403).json({error:'Akses admin tidak diizinkan.'}); return; }
+    if (!accountId || !allowed.has(accountId)) { res.status(403).json({error:'Akses admin tidak diizinkan.'}); return; }
     const online = [...sessions.values()].filter(s=>s.ws.readyState===WebSocket.OPEN);
     const activeRooms = [...rooms.values()];
     res.json({ ok:true, timestamp:Date.now(), uptimeSec:Math.floor(process.uptime()), protocolVersion:3, simulation:'host-relay',
