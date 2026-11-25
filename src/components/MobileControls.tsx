@@ -4,6 +4,27 @@ import { HEROES } from '../services/gameCatalog';
 import { BattleInputBridge, HudSnapshot } from '../types/game';
 import { SkillIcon } from './GeometricOrnament';
 
+const controlOptions = {
+  sensitivity: { label: 'Sensitivitas stik', initial: 1, min: .6, max: 1.5, step: .05 },
+  opacity: { label: 'Opasitas kontrol', initial: 1, min: .45, max: 1, step: .05 },
+  size: { label: 'Ukuran kontrol', initial: 1, min: .8, max: 1.15, step: .05 },
+  offsetX: { label: 'Geser stik ke kanan', initial: 0, min: 0, max: .12, step: .01 },
+  offsetY: { label: 'Geser stik ke atas', initial: 0, min: 0, max: .15, step: .01 },
+};
+
+type ControlOption = keyof typeof controlOptions;
+type ControlSettings = Record<ControlOption, number>;
+const controlKeys = Object.keys(controlOptions) as ControlOption[];
+const controlsStorageKey = 'nur_controls';
+
+function normalizeControls(saved: Partial<ControlSettings> | null = null): ControlSettings {
+  return Object.fromEntries(controlKeys.map(key => {
+    const { initial, min, max } = controlOptions[key];
+    const value = saved?.[key];
+    return [key, typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : initial];
+  })) as ControlSettings;
+}
+
 interface MobileControlsProps {
   hud: HudSnapshot;
   inputBridge: React.MutableRefObject<BattleInputBridge>;
@@ -20,16 +41,15 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   const attackLabel = isRanged ? 'Tembak' : 'Serang';
   const [custom, setCustom] = useState(() => {
     try {
-      const v = JSON.parse(localStorage.getItem('nur_controls') || '{}');
-      const clamp = (n: unknown, fallback: number, min: number, max: number) => typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
-      return { sensitivity: clamp(v.sensitivity, 1, .6, 1.5), opacity: clamp(v.opacity, 1, .45, 1), size: clamp(v.size, 1, .8, 1.15) };
-    } catch { return { sensitivity: 1, opacity: 1, size: 1 }; }
+      return normalizeControls(JSON.parse(localStorage.getItem(controlsStorageKey) || '{}'));
+    } catch {
+      return normalizeControls();
+    }
   });
   const [customOpen, setCustomOpen] = useState(false);
-  const updateCustom = (key: 'sensitivity' | 'opacity' | 'size', value: number) => {
-    const next = { ...custom, [key]: value };
+  const saveControls = (next: ControlSettings) => {
     setCustom(next);
-    try { localStorage.setItem('nur_controls', JSON.stringify(next)); } catch { /* optional */ }
+    try { localStorage.setItem(controlsStorageKey, JSON.stringify(next)); } catch { /* storage unavailable */ }
   };
 
   // Virtual Analog Stick State (supports Mouse/Trackpad on Laptop & PC + Touch on Mobile)
@@ -145,8 +165,8 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     const el = zoneRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const cx = clientX - rect.left;
-    const cy = clientY - rect.top;
+    const cx = (clientX - rect.left) / custom.size;
+    const cy = (clientY - rect.top) / custom.size;
     let dx = cx - origin.x;
     let dy = cy - origin.y;
     const dist = Math.hypot(dx, dy);
@@ -166,7 +186,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
   };
 
   const handleJoyDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    if (customOpen || (e.button !== 0 && e.pointerType === 'mouse')) return;
     e.preventDefault();
     e.stopPropagation();
     if (joyPointerId.current !== null) return;
@@ -178,12 +198,12 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     }
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const localX = e.clientX - rect.left;
-    const localY = e.clientY - rect.top;
+    const localX = (e.clientX - rect.left) / custom.size;
+    const localY = (e.clientY - rect.top) / custom.size;
 
     // Resting stick center inside the left zone (matches base ring position)
-    const restingCenterX = rect.width / 2;
-    const restingCenterY = rect.height / 2;
+    const restingCenterX = rect.width / custom.size / 2;
+    const restingCenterY = rect.height / custom.size / 2;
     const distFromRest = Math.hypot(localX - restingCenterX, localY - restingCenterY);
 
     // If clicking within/near the resting stick ring (ideal for Laptop/PC mouse & trackpad),
@@ -251,16 +271,42 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
 
   return (
     <div className="nur-mobile-controls pointer-events-none fixed inset-0 z-20 flex items-end justify-between touch-none" style={{ paddingLeft: "max(12px, env(safe-area-inset-left))", paddingRight: "max(12px, env(safe-area-inset-right))", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-      <button type="button" className="nur-control-toggle pointer-events-auto absolute left-3 bottom-[48dvh] rounded bg-slate-950/90 border border-amber-500/50 px-2 py-1 text-xs text-amber-200" onClick={() => { stopAttack(); inputBridge.current.moveX = 0; inputBridge.current.moveY = 0; setCustomOpen(v => !v); }}>Kontrol</button>
-      {customOpen && <div className="nur-control-panel pointer-events-auto absolute left-3 bottom-[52dvh] z-50 rounded-lg bg-slate-950 border border-amber-500/50 p-3 text-xs text-white space-y-2">
-        {(['sensitivity', 'opacity', 'size'] as const).map(key => <label key={key} className="block">{key === 'sensitivity' ? 'Sensitivitas' : key === 'opacity' ? 'Transparansi' : 'Ukuran'} {Math.round(custom[key] * 100)}%<input className="block w-32" type="range" min={key === 'opacity' ? .45 : key === 'size' ? .8 : .6} max={key === 'opacity' ? 1 : key === 'size' ? 1.15 : 1.5} step={.05} value={custom[key]} onChange={e => updateCustom(key, Number(e.target.value))}/></label>)}
-        <button type="button" onClick={() => setCustomOpen(false)} className="rounded bg-emerald-700 px-3 py-1">Selesai</button>
-      </div>}
+      <button
+        type="button"
+        aria-expanded={customOpen}
+        aria-controls="stick-settings"
+        className="nur-control-toggle pointer-events-auto absolute left-3 min-h-10 rounded-lg border border-amber-500/50 bg-slate-950/90 px-3 text-xs font-bold text-amber-200"
+        onClick={() => {
+          stopAttack();
+          inputBridge.current.moveX = 0;
+          inputBridge.current.moveY = 0;
+          setCustomOpen(open => !open);
+        }}
+      >
+        Atur Stik
+      </button>
+      {customOpen && (
+        <section id="stick-settings" aria-label="Pengaturan stik" className="nur-control-panel pointer-events-auto absolute left-3 z-50 w-60 max-w-[calc(100vw-1.5rem)] rounded-xl border border-amber-500/50 bg-slate-950 p-3 text-xs text-white">
+          {controlKeys.map(key => {
+            const { label, min, max, step } = controlOptions[key];
+            return (
+              <label key={key} className="mb-2 block">
+                <span className="flex justify-between gap-1"><span>{label}</span><span>{Math.round(custom[key] * 100)}%</span></span>
+                <input aria-label={label} className="block w-full accent-amber-400" type="range" min={min} max={max} step={step} value={custom[key]} onChange={e => saveControls({ ...custom, [key]: Number(e.target.value) })} />
+              </label>
+            );
+          })}
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" onClick={() => saveControls(normalizeControls())} className="min-h-9 rounded bg-slate-800 px-2">Setelan Awal</button>
+            <button type="button" onClick={() => setCustomOpen(false)} className="min-h-9 rounded bg-emerald-700 px-3 font-bold">Selesai</button>
+          </div>
+        </section>
+      )}
       {/* Left Side: Virtual Stick Zone (Mouse/Trackpad on Laptop & PC + Touch on Mobile) */}
       <div
         ref={zoneRef}
         className="nur-stick-zone pointer-events-auto relative shrink-0 w-[clamp(112px,26vw,216px)] h-[clamp(112px,26vw,216px)] max-h-[48dvh] touch-none select-none cursor-grab active:cursor-grabbing"
-        style={{ opacity: custom.opacity, transform: 'scale(' + custom.size + ')', transformOrigin: 'bottom left' }}
+        style={{ opacity: custom.opacity, transform: `translate(${custom.offsetX * 100}vw, ${-custom.offsetY * 100}dvh) scale(${custom.size})`, transformOrigin: 'bottom left' }}
         onPointerDown={handleJoyDown}
         onPointerMove={handleJoyMove}
         onPointerUp={handleJoyEnd}

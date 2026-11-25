@@ -599,7 +599,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 rounded-lg bg-[#081523]/85 border border-[#d4af37]/30 text-[11px] text-slate-300">
           <span>Stick Virtual / WASD Gerak</span>
           <span>·</span>
-          <span>Spasi Serang</span>
+          <span>Spasi {heroDef.stats.isRanged ? 'Tembak' : 'Serang'}</span>
           <span>·</span>
           <span>Q / E / R Skill</span>
           <span>·</span>

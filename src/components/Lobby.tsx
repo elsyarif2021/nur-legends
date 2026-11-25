@@ -472,7 +472,7 @@ export const Lobby: React.FC<LobbyProps> = ({
       <footer className="nur-lobby-footer relative z-10 px-4 sm:px-8 py-2 border-t border-[#d4af37]/15 flex items-center justify-between text-[11px] text-slate-400">
         <span>Amanah · Sabar · Kejujuran · Persaudaraan</span>
         <span className="hidden sm:inline">
-          Laptop/PC: Stick Virtual (Mouse) / WASD · Spasi Serang · Q E R F Skill · B Pulang | Sentuh: Joystick & Tombol
+          Laptop/PC: Stick Virtual (Mouse) / WASD · Spasi Tembak/Serang · Q E R F Skill · B Pulang | Sentuh: Joystick & Tombol
         </span>
       </footer>
 

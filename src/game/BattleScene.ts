@@ -298,13 +298,12 @@ export class BattleScene extends Phaser.Scene {
   private chatFeed: Array<QuickChatFeedItem & { ttl: number }> = [];
   private chatCounter = 1;
 
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private cursors!: Pick<Phaser.Types.Input.Keyboard.CursorKeys, 'up' | 'down' | 'left' | 'right'>;
   private keys!: {
     w: Phaser.Input.Keyboard.Key;
     a: Phaser.Input.Keyboard.Key;
     s: Phaser.Input.Keyboard.Key;
     d: Phaser.Input.Keyboard.Key;
-    space: Phaser.Input.Keyboard.Key;
     q: Phaser.Input.Keyboard.Key;
     e: Phaser.Input.Keyboard.Key;
     r: Phaser.Input.Keyboard.Key;
@@ -313,7 +312,35 @@ export class BattleScene extends Phaser.Scene {
     g: Phaser.Input.Keyboard.Key;
   };
 
+  private spaceHeld = false;
+  private spaceRepeatTimer = 0;
+
+  private queueSpaceAttack(): void {
+    const queue = this.initData.inputBridge.triggerQueue;
+    if (!queue.includes('basic')) queue.push('basic');
+    this.spaceRepeatTimer = 0.1;
+  }
+
+  private handleSpaceDown = (event: KeyboardEvent) => {
+    if (event.code !== 'Space' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.target instanceof Element && event.target.closest('button, input, textarea, select, a[href], [contenteditable], [role="button"]')) return;
+    if (this.initData.inputBridge.paused || this.matchEnded) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    this.spaceHeld = true;
+    this.queueSpaceAttack();
+  };
+
+  private handleSpaceUp = (event: KeyboardEvent) => {
+    if (event.code === 'Space') this.spaceHeld = false;
+  };
+
+  private handleVisibilityChange = () => {
+    if (document.hidden) this.blurHandler();
+  };
+
   private blurHandler = () => {
+    this.spaceHeld = false;
     if (!this.input || !this.input.keyboard) return;
     this.input.keyboard.resetKeys();
   };
@@ -436,9 +463,16 @@ export class BattleScene extends Phaser.Scene {
     this.pushNotice('Pertempuran Dimulai! Lindungi Inti Cahaya!', 'gold');
     this.emitHudSnapshot(null);
 
+    this.spaceHeld = false;
+    window.addEventListener('keydown', this.handleSpaceDown);
+    window.addEventListener('keyup', this.handleSpaceUp);
     window.addEventListener('blur', this.blurHandler);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('keydown', this.handleSpaceDown);
+      window.removeEventListener('keyup', this.handleSpaceUp);
       window.removeEventListener('blur', this.blurHandler);
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       this.unsubOnline?.();
       this.unsubOnline = null;
       this.transport.disconnect();
@@ -447,13 +481,13 @@ export class BattleScene extends Phaser.Scene {
 
   private setupKeyboard(): void {
     if (!this.input.keyboard) return;
-    this.cursors = this.input.keyboard.createCursorKeys();
+    const { UP, DOWN, LEFT, RIGHT } = Phaser.Input.Keyboard.KeyCodes;
+    this.cursors = this.input.keyboard.addKeys({ up: UP, down: DOWN, left: LEFT, right: RIGHT }, false) as typeof this.cursors;
     this.keys = {
       w: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
       a: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       s: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
       d: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      space: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       q: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       e: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
       r: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R),
@@ -1102,9 +1136,16 @@ export class BattleScene extends Phaser.Scene {
       this.renderQuality = quality;
       this.initData.onRenderQuality(quality);
     }
-    if (paused) return;
+    if (paused) {
+      this.spaceHeld = false;
+      return;
+    }
 
     const dt = Math.min(deltaMs / 1000, 0.05);
+    if (this.spaceHeld) {
+      this.spaceRepeatTimer -= dt;
+      if (this.spaceRepeatTimer <= 0) this.queueSpaceAttack();
+    }
 
     if (this.isOnlineClient) {
       this.runOnlineClientTick(dt);
@@ -1320,13 +1361,12 @@ export class BattleScene extends Phaser.Scene {
     let mx = bridge.moveX;
     let my = bridge.moveY;
 
-    if (this.keys) {
+    if (this.keys && !document.activeElement?.matches('input, textarea, select, [contenteditable]')) {
       if (this.keys.a.isDown || this.cursors.left.isDown) mx -= 1;
       if (this.keys.d.isDown || this.cursors.right.isDown) mx += 1;
       if (this.keys.w.isDown || this.cursors.up.isDown) my -= 1;
       if (this.keys.s.isDown || this.cursors.down.isDown) my += 1;
 
-      if (Phaser.Input.Keyboard.JustDown(this.keys.space)) bridge.triggerQueue.push('basic');
       if (Phaser.Input.Keyboard.JustDown(this.keys.q)) bridge.triggerQueue.push('s1');
       if (Phaser.Input.Keyboard.JustDown(this.keys.e)) bridge.triggerQueue.push('s2');
       if (Phaser.Input.Keyboard.JustDown(this.keys.r)) bridge.triggerQueue.push('s3');
@@ -3376,13 +3416,12 @@ export class BattleScene extends Phaser.Scene {
     let mx = bridge.moveX;
     let my = bridge.moveY;
 
-    if (this.keys) {
+    if (this.keys && !document.activeElement?.matches('input, textarea, select, [contenteditable]')) {
       if (this.keys.a.isDown || this.cursors.left.isDown) mx -= 1;
       if (this.keys.d.isDown || this.cursors.right.isDown) mx += 1;
       if (this.keys.w.isDown || this.cursors.up.isDown) my -= 1;
       if (this.keys.s.isDown || this.cursors.down.isDown) my += 1;
 
-      if (Phaser.Input.Keyboard.JustDown(this.keys.space)) bridge.triggerQueue.push('basic');
       if (Phaser.Input.Keyboard.JustDown(this.keys.q)) bridge.triggerQueue.push('s1');
       if (Phaser.Input.Keyboard.JustDown(this.keys.e)) bridge.triggerQueue.push('s2');
       if (Phaser.Input.Keyboard.JustDown(this.keys.r)) bridge.triggerQueue.push('s3');

@@ -86,7 +86,7 @@
 .nur-hud-tools { min-width: 0; max-width: 42%; }
 .nur-minimap { width: clamp(72px, 17vmin, 144px); height: clamp(72px, 17vmin, 144px); }
 .nur-control-toggle { bottom: min(34dvh, 235px); }
-.nur-control-panel { bottom: min(40dvh, 275px); max-height: 48dvh; overflow-y: auto; }
+.nur-control-panel { bottom: calc(min(34dvh, 235px) + 44px); max-height: min(54dvh, 310px, calc(100dvh - min(34dvh, 235px) - 56px)); overflow-y: auto; }
 @media (max-width: 1023px) {
   .nur-hud-stats { display: none; }
   .nur-lobby-main { align-content: start; }
