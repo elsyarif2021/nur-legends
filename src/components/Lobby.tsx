@@ -35,6 +35,7 @@ import {
 } from '../types/game';
 import { CornerFiligree, SkillIcon, StarEmblem } from './GeometricOrnament';
 import { HeroAvatar } from './HeroAvatar';
+import { GameGuide } from './GameGuide';
 import {
   HeroCollectionModal,
   HistoryModal,
@@ -68,6 +69,7 @@ interface LobbyProps {
 }
 
 type ModalTab =
+  | 'guide'
   | 'heroes'
   | 'missions'
   | 'quiz'
@@ -270,7 +272,15 @@ export const Lobby: React.FC<LobbyProps> = ({
       {/* MAIN LOBBY CONTENT (16:9 Landscape Stage) */}
       <main className="nur-lobby-main relative z-10 min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-12 items-start px-4 sm:px-8 py-3 gap-4 overflow-y-auto">
         {/* Left Navigation Menu */}
-        <nav className="lg:col-span-3 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
+        <nav aria-label="Menu lobi" className="relative z-10 min-h-14 lg:col-span-3 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
+          <button
+            type="button"
+            onClick={() => openModal('guide')}
+            className="flex shrink-0 items-center gap-3 whitespace-nowrap rounded-xl border border-amber-400/50 px-4 py-3 text-left"
+          >
+            <Compass aria-hidden="true" className="size-5 text-amber-300" />
+            <span className="text-sm font-bold text-white">Panduan Game</span>
+          </button>
           <button
             type="button"
             onClick={() => openModal('heroes')}
@@ -473,6 +483,21 @@ export const Lobby: React.FC<LobbyProps> = ({
 
       {adminOpen && adminAllowed && authUser && <AdminDashboard onClose={()=>setAdminOpen(false)}/>}
       {/* ACTIVE MODALS */}
+      {activeModal === 'guide' && (
+        <GameGuide
+          selectedHeroId={progress.selectedHeroId}
+          onSelectHero={onSelectHero}
+          onClose={() => setActiveModal(null)}
+          onPlay={mode => {
+            if (mode === 'online') {
+              openModal('online');
+            } else {
+              setActiveModal(null);
+              onStartMatch(mode);
+            }
+          }}
+        />
+      )}
       {activeModal === 'heroes' && (
         <HeroCollectionModal
           selectedHeroId={progress.selectedHeroId}
